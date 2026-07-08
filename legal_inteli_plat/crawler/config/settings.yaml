@@ -1,0 +1,15 @@
+app_name: legal-crawler
+log_level: INFO
+storage_backend: local
+download_timeout: 30
+max_parallel_downloads: 4
+retry_attempts: 3
+rate_limit_per_second: 1.0
+discovery:
+  enabled: true
+  sources:
+    - name: sebi
+      url: https://www.sebi.gov.in
+      category_path: /legal/acts-rules-and-regulations
+      crawl_frequency: daily
+      enabled: true

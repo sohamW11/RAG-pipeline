@@ -1,0 +1,11 @@
+version: '3.9'
+services:
+  crawler:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./crawler.db
+      - CRAWLER_CONFIG_PATH=/app/config/settings.yaml
+    volumes:
+      - .:/app
