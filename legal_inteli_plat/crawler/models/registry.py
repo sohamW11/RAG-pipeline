@@ -99,6 +99,9 @@ class Document(Base, TimestampMixin):
     language: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     document_type: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     version: Mapped[Optional[str]] = mapped_column(String(64), default="1", nullable=True)
+    # Comma-separated keywords derived from the document title/category, used to
+    # give downstream consumers (search, RAG) cheap context without parsing PDFs.
+    keywords: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # Fingerprint of the metadata record; drives change detection cheaply.
     content_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
 

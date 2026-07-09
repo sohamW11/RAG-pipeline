@@ -1,15 +1,95 @@
-app_name: legal-crawler
-log_level: INFO
-storage_backend: local
-download_timeout: 30
-max_parallel_downloads: 4
-retry_attempts: 3
-rate_limit_per_second: 1.0
+# Crawler configuration.
+#
+# This file is the single source of truth for structural configuration and is
+# validated against the Pydantic models in `crawler/config/settings.py`. A small
+# set of deployment-varying values (secrets, connection strings, feature
+# toggles) can be overridden via environment variables -- see `.env.example`.
+
+app:
+  name: legal-crawler
+  environment: local
+  log_level: INFO
+  json_logs: true
+
+database:
+  url: sqlite+aiosqlite:///./crawler.db
+  echo: false
+
+storage:
+  backend: local
+  local_path: ./storage-data
+
+kafka:
+  enabled: false
+  bootstrap_servers: localhost:9092
+  client_id: legal-crawler
+  topics:
+    discovery: crawler.discovery
+    metadata: crawler.metadata
+    downloads: crawler.downloads
+    errors: crawler.errors
+    ready_for_parse: crawler.ready_for_parse
+    dead_letter: crawler.dead_letter
+
+redis:
+  enabled: false
+  url: redis://localhost:6379/0
+  namespace: crawler
+
+download:
+  timeout: 60
+  max_parallel: 4
+  retry_attempts: 5
+  retry_backoff_seconds: 2.0
+  # Shared across listing/detail fetches AND PDF downloads. 1 req/s is gentle
+  # enough that SEBI does not drop the connection / reset the session; the crawl
+  # is idempotent, so a slower-but-reliable pace beats a fast-but-crashing one.
+  rate_limit_per_second: 1.0
+  user_agent: "LegalIntelligenceCrawler/1.0 (+compliance@example.com)"
+
 discovery:
   enabled: true
   sources:
     - name: sebi
-      url: https://www.sebi.gov.in
-      category_path: /legal/acts-rules-and-regulations
+      base_url: https://www.sebi.gov.in
+      adapter: sebi
+      # Landing page listing the legal categories; scraped during discovery.
+      legal_path: /legal.html
+      # SEBI's AJAX endpoint used to page through a category's listing.
+      listing_ajax_path: /sebiweb/ajax/home/getnewslistinfo.jsp
       crawl_frequency: daily
       enabled: true
+      fetcher: httpx
+      # Link texts on legal.html promoted to crawlable categories.
+      discovery_keywords:
+        - Acts
+        - Rules
+        - Regulations
+        - General Orders
+        - Guidelines
+        - Master Circulars
+        - Advisory/Guidance
+        - Circulars
+        - Gazette Notification
+        - Guidance Notes
+
+# Bounds for a single crawl run. Zero = unlimited (full archival crawl).
+# Defaults here keep an ad-hoc run polite; override via the CLI (--max-pages,
+# --max-docs, --force) or by editing this section.
+crawl:
+  max_pages_per_category: 0
+  max_documents_per_category: 0
+  force: false
+
+scheduler:
+  enabled: true
+  backend: internal
+  max_retries: 3
+  jobs:
+    - name: sebi-daily-crawl
+      schedule: "0 2 * * *"
+      job_type: crawl
+      priority: 5
+      enabled: true
+      payload:
+        source: sebi

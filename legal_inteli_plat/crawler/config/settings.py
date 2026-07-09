@@ -147,10 +147,32 @@ class SourceConfig(BaseModel):
     crawl_frequency: str = "daily"
     enabled: bool = True
     fetcher: str = "httpx"  # httpx | playwright
+    # Selects the crawl strategy for this source. ``generic`` uses the
+    # selector-driven ListingCrawler; ``sebi`` uses the SEBI adapter that
+    # understands SEBI's AJAX pagination and iframe-embedded PDFs. New
+    # regulators plug in by registering another adapter -- no core changes.
+    adapter: str = "generic"  # generic | sebi
+    # The landing page listing the legal categories (scraped in discovery).
+    legal_path: str = "/legal.html"
+    # SEBI's AJAX listing endpoint used to page through a category.
+    listing_ajax_path: str = "/sebiweb/ajax/home/getnewslistinfo.jsp"
     selectors: SelectorConfig = Field(default_factory=SelectorConfig)
     categories: list[CategoryConfig] = Field(default_factory=list)
     # Text labels that identify a category link on the discovery landing page.
     discovery_keywords: list[str] = Field(default_factory=list)
+
+
+class CrawlConfig(BaseModel):
+    """Bounds applied to a crawl run (safety valves for large sites).
+
+    Zero means "no limit". These keep an ad-hoc run polite and finite; a full
+    archival crawl simply sets them to zero.
+    """
+
+    max_pages_per_category: int = 0
+    max_documents_per_category: int = 0
+    # Re-download and version documents even if already stored.
+    force: bool = False
 
 
 class DiscoveryConfig(BaseModel):
@@ -190,6 +212,7 @@ class CrawlerSettings(BaseModel):
     redis: RedisConfig = Field(default_factory=RedisConfig)
     download: DownloadConfig = Field(default_factory=DownloadConfig)
     discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
+    crawl: CrawlConfig = Field(default_factory=CrawlConfig)
     scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
 
     # ------------------------------------------------------------------ #

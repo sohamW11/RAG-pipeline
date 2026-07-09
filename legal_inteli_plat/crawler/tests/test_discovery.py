@@ -1,32 +1,69 @@
-import asyncio
+"""Discovery service tests.
 
-from crawler.config.settings import CrawlerSettings
+Discovery is configuration-driven and depends only on the :class:`PageFetcher`
+contract, so we inject a fake fetcher and assert on the categories produced --
+no network, no browser.
+"""
+
+from crawler.config.settings import CrawlerSettings, SourceConfig
+from crawler.crawler.fetcher import PageFetcher
 from crawler.discovery.service import DiscoveryService
 
 
-def test_discovery_returns_categories_for_configured_source(monkeypatch):
-    settings = CrawlerSettings.from_env()
-    service = DiscoveryService(settings)
+class FakeFetcher(PageFetcher):
+    """A :class:`PageFetcher` that returns canned HTML for any URL."""
 
-    class FakeResponse:
-        def __init__(self, text):
-            self.text = text
+    def __init__(self, html: str) -> None:
+        self.html = html
+        self.closed = False
 
-        def raise_for_status(self):
-            return None
+    async def fetch(self, url: str) -> str:
+        return self.html
 
-    class FakeSession:
-        async def get(self, url):
-            return FakeResponse("<html><body><a href='/legal/acts'>Acts</a><a href='/legal/rules'>Rules</a></body></html>")
+    async def close(self) -> None:
+        self.closed = True
 
-        async def aclose(self):
-            return None
 
-    service._session = FakeSession()
-    categories = asyncio.run(service.discover_categories(settings.discovery.sources[0]))
+async def test_discovery_scrapes_landing_page_by_keywords():
+    settings = CrawlerSettings()
+    source = SourceConfig(
+        name="sebi",
+        base_url="https://example.com",
+        category_path="/legal",
+        discovery_keywords=["Acts", "Rules"],
+    )
+    html = (
+        "<html><body>"
+        "<a href='/legal/acts'>Acts</a>"
+        "<a href='/legal/rules'>Rules</a>"
+        "<a href='/about'>About Us</a>"  # not a keyword -> ignored
+        "</body></html>"
+    )
+    service = DiscoveryService(settings, fetcher=FakeFetcher(html))
 
-    assert len(categories) == 2
-    assert categories[0].name == "Acts"
-    assert categories[1].name == "Rules"
+    categories = await service.discover(source)
 
-    asyncio.run(service.close())
+    assert [c.name for c in categories] == ["Acts", "Rules"]
+    assert categories[0].url == "https://example.com/legal/acts"
+    assert all(c.source == "sebi" for c in categories)
+
+
+async def test_discovery_uses_declared_categories_without_fetching():
+    settings = CrawlerSettings()
+    source = SourceConfig(
+        name="sebi",
+        base_url="https://example.com",
+        category_path="/legal",
+        categories=[
+            {"name": "Acts", "path": "/legal/acts"},
+            {"name": "Circulars", "path": "/legal/circulars", "enabled": False},
+        ],
+    )
+    # A fetcher that would raise if the landing page were scraped.
+    service = DiscoveryService(settings, fetcher=FakeFetcher(""))
+
+    categories = await service.discover(source)
+
+    # Only the enabled declared category is returned; no scraping happens.
+    assert [c.name for c in categories] == ["Acts"]
+    assert categories[0].url == "https://example.com/legal/acts"

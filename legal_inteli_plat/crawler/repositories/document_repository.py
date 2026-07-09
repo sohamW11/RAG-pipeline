@@ -32,6 +32,7 @@ class DocumentRepository(AsyncRepository[Document]):
         language: Optional[str] = None,
         document_type: Optional[str] = None,
         version: Optional[str] = "1",
+        keywords: Optional[str] = None,
         content_hash: Optional[str] = None,
     ) -> Document:
         """Insert a new document metadata row."""
@@ -49,6 +50,7 @@ class DocumentRepository(AsyncRepository[Document]):
             language=language,
             document_type=document_type,
             version=version,
+            keywords=keywords,
             content_hash=content_hash,
         )
         return await self.add(document)
