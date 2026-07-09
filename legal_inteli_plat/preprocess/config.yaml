@@ -1,0 +1,49 @@
+# SEBI preprocessing configuration.
+# Every threshold and toggle lives here — no magic numbers in code (see CLAUDE.md §3).
+# Tuning the pipeline should be a one-file change.
+
+app:
+  log_level: INFO
+  json_logs: true
+
+paths:
+  input_dir: data/pdfs        # where downloaded PDFs live (named by doc_id)
+  parsed_dir: parsed          # output: {doc_id}.json + preprocess_manifest.json
+  logs_dir: logs
+  # Optional: Phase-1 inventory to join title/date/subsection/source_url by doc_id.
+  # The crawler persists these to crawler.db (documents table); a JSON export path
+  # can be pointed here later. Unmatched PDFs are still parsed, flagged
+  # metadata_matched: false.
+  inventory_path: null
+
+triage:
+  # A page with at least this many extractable text characters is treated as
+  # `native`; below it the page is `scanned` and gets rendered to an image.
+  # Verified empirically in Checkpoint 0 — see README recon notes.
+  native_char_threshold: 100
+  # DPI used to render scanned pages to images for the OCR / VLM path.
+  render_dpi: 300
+
+parsers:
+  docling:
+    enabled: true
+  camelot:
+    enabled: true
+    # Camelot flavor for table repair on native pages. "lattice" reads ruled
+    # (vector-line) tables; "stream" handles whitespace-delimited tables.
+    flavor: lattice
+  ocr:
+    # Pluggable English OCR adapter (Checkpoint 4). "tesseract" is the default
+    # concrete engine; the multilingual adapter drops in here later.
+    adapter: tesseract
+    language: eng
+
+# Table quality gate (CLAUDE.md §5). A table is flagged "broken" if ANY hold.
+table_gate:
+  min_rows: 2
+  min_cols: 2
+  max_empty_cell_ratio: 0.40        # >40% empty cells => broken
+  # A single cell holding more than this share of the table's total text
+  # signals collapsed columns.
+  max_single_cell_text_share: 0.60
+  # Ragged rows (inconsistent column counts) always flag as broken.

@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+parsed/
+logs/
+data/pdfs/
+.pytest_cache/
+# Fixtures are committed deliberately (tests/fixtures/*.pdf) for offline CI.

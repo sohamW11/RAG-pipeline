@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sebi-preprocessing"
+version = "0.1.0"
+description = "Phase 2 — SEBI PDF preprocessing: raw PDF -> normalized, provenance-tagged structured elements."
+requires-python = ">=3.11"
+dependencies = [
+    # --- PDF triage + rendering (the "scout") ---
+    "pymupdf==1.24.14",
+    # --- native parser: text, reading order, tables in one pass ---
+    # docling-core MUST be pinned alongside docling: docling 2.15.1 declares
+    # `docling-core>=2.13.1,<3.0.0`, but that loose upper bound lets pip pull
+    # docling-core 2.86 which drops symbols 2.15.1 imports (ImportError at
+    # import time). Also do NOT `pip install -U docling` -> latest (2.111) is a
+    # thin wrapper over `docling-slim`, a cloud/service build with no local
+    # `document_converter`/PDF pipeline. Pin the self-contained pair:
+    "docling==2.15.1",
+    "docling-core[chunking]==2.15.1",
+    # --- table repair specialist (native only; needs Ghostscript on the host) ---
+    "camelot-py[cv]==0.11.0",
+    # --- records + validation ---
+    "pydantic==2.13.4",
+    # --- CLI + structured logging (match Phase-1 stack) ---
+    # docling 2.15.1 constrains typer<0.13, so we ride its resolved 0.12.5
+    # rather than pinning a newer typer (avoids a hard resolver conflict).
+    "typer<0.13",
+    "structlog==26.1.0",
+    "pyyaml==6.0.2",
+]
+
+[project.optional-dependencies]
+ocr = [
+    # Pluggable English OCR engine for the scanned path (Checkpoint 4).
+    "pytesseract==0.3.13",
+    "pillow==11.0.0",
+]
+dev = [
+    "pytest==8.3.4",
+    "ruff==0.8.4",
+    "black==24.10.0",
+]
+
+[project.scripts]
+sebi-preprocess = "sebi_preprocessing.cli:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.black]
+line-length = 100
