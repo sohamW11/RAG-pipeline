@@ -1,76 +1,68 @@
-<<<<<<< HEAD
-# Byte-compiled / optimized files
+# =========================
+# Python
+# =========================
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
-=======
-# Python
-__pycache__/
-*.py[cod]
-.pytest_cache/
->>>>>>> preprocess
-
-# Virtual environments
-.venv/
-venv/
-<<<<<<< HEAD
-env/
-
-# Test / tooling caches
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
 htmlcov/
 
-# Local runtime artifacts
+# =========================
+# Virtual Environments
+# =========================
+.venv/
+venv/
+env/
+crawler/.venv/
+
+# =========================
+# Databases
+# =========================
 *.db
 *.sqlite
 *.sqlite3
+
+# =========================
+# Logs
+# =========================
 *.log
+
+# =========================
+# Runtime / Storage
+# =========================
 storage-data/
 crawler/storage-data/
 
-# Environment files (keep .env.example)
-.env
-.env.local
-
-# Editor / OS
-.DS_Store
-.idea/
-=======
-
-# Databases
-*.db
-*.sqlite
-*.sqlite3
-
-# Logs
-*.log
-
-# Storage
-storage-data/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-
-# Environment
+# =========================
+# Environment Files
+# =========================
 .env
 .env.*
+!.env.example
 
+# =========================
 # Build
+# =========================
 dist/
 build/
 
-# Python cache everywhere
-**/__pycache__/
+# =========================
+# IDE
+# =========================
+.vscode/
+.idea/
 
-# Crawler cache
-crawler/.venv/
-crawler/__pycache__/
->>>>>>> preprocess
+# =========================
+# Operating System
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Claude
+# =========================
+claude.md
