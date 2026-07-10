@@ -1,11 +1,19 @@
+<<<<<<< HEAD
 # Byte-compiled / optimized files
 __pycache__/
 *.py[cod]
 *$py.class
+=======
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+>>>>>>> preprocess
 
 # Virtual environments
 .venv/
 venv/
+<<<<<<< HEAD
 env/
 
 # Test / tooling caches
@@ -30,3 +38,39 @@ crawler/storage-data/
 # Editor / OS
 .DS_Store
 .idea/
+=======
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# Storage
+storage-data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.env
+.env.*
+
+# Build
+dist/
+build/
+
+# Python cache everywhere
+**/__pycache__/
+
+# Crawler cache
+crawler/.venv/
+crawler/__pycache__/
+>>>>>>> preprocess
