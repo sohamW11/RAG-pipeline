@@ -11,10 +11,10 @@ paths:
   parsed_dir: parsed          # output: {doc_id}.json + preprocess_manifest.json
   logs_dir: logs
   # Optional: Phase-1 inventory to join title/date/subsection/source_url by doc_id.
-  # The crawler persists these to crawler.db (documents table); a JSON export path
-  # can be pointed here later. Unmatched PDFs are still parsed, flagged
+  # Points at the crawler's SQLite DB (documents + document_versions); a JSON
+  # export can be supported later. Unmatched PDFs are still parsed, flagged
   # metadata_matched: false.
-  inventory_path: null
+  inventory_path: ../crawler.db
 
 triage:
   # A page with at least this many extractable text characters is treated as
