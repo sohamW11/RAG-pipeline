@@ -27,6 +27,7 @@ from .inventory import Inventory, load_inventory
 from .models import DocumentElement, PageInfo, ParsedDocument
 from .normalize import build_element
 from .parse_native import parse_native
+from .parse_scanned import parse_scanned
 from .tables import evaluate_table, repair_native_table
 from .triage import triage_document
 
@@ -95,11 +96,29 @@ def process_document(
                 errors.append(f"{file.name}: docling parse failed: {exc}")
                 log.warning("pipeline.docling_failed", source_file=file.name, error=str(exc))
 
+        scanned = triage.scanned_pages()
+        scanned_by_page: dict[int, list] = defaultdict(list)
+        if scanned:
+            try:
+                ocr = parse_scanned(file, scanned, settings=settings)
+                for el in ocr.elements:
+                    scanned_by_page[el.page].append(el)
+            except Exception as exc:  # noqa: BLE001 - isolate a bad file
+                errors.append(f"{file.name}: ocr failed: {exc}")
+                log.warning("pipeline.ocr_failed", source_file=file.name, error=str(exc))
+
         for tp in triage.pages:
             page_found = page_repaired = 0
             page_elements = 0
             if tp.page_type == "scanned":
-                errors.append(f"{file.name} p{tp.page}: scanned page — OCR deferred (Checkpoint 4)")
+                raws = sorted(scanned_by_page.get(tp.page, []), key=lambda r: r.reading_order)
+                for raw in raws:
+                    elements.append(
+                        build_element(raw=raw, doc_id=doc_id, part=part, source_file=file.name)
+                    )
+                    page_elements += 1
+                if not raws:
+                    errors.append(f"{file.name} p{tp.page}: scanned page produced no OCR text")
             else:
                 for raw in sorted(raw_by_page.get(tp.page, []), key=lambda r: r.reading_order):
                     source_parser = notes = None

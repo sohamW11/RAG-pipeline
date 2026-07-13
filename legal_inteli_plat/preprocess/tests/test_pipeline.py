@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from sebi_preprocessing.config import PreprocessSettings
+from sebi_preprocessing.config import OcrConfig, ParsersConfig, PreprocessSettings
 from sebi_preprocessing.models import ParsedDocument
 from sebi_preprocessing.pipeline import (
     discover_pdfs,
@@ -20,7 +20,8 @@ from sebi_preprocessing.pipeline import (
 
 @pytest.fixture(scope="session")
 def settings() -> PreprocessSettings:
-    return PreprocessSettings()  # inventory_path=None => no crawler.db join
+    # inventory_path=None => no crawler.db join; rapidocr => no system tesseract needed
+    return PreprocessSettings(parsers=ParsersConfig(ocr=OcrConfig(adapter="rapidocr")))
 
 
 # --- doc_id / discovery -------------------------------------------------------
@@ -89,15 +90,19 @@ def test_table_element_present(parsed_bankers) -> None:
 # --- mixed doc: scanned page recorded, not dropped ----------------------------
 
 
-def test_mixed_doc_records_scanned_page(mixed_pdf, settings) -> None:
+def test_mixed_doc_ocrs_scanned_and_docling_native(mixed_pdf, settings) -> None:
+    # One doc exercising BOTH engines: Docling on the 4 native pages, OCR on p4.
     parsed = process_document("101817", [mixed_pdf], settings)
     assert parsed.page_count == 5
     scanned = [p for p in parsed.pages if p.page_type == "scanned"]
     assert len(scanned) == 1 and scanned[0].page == 4
-    # scanned page deferred to OCR (Checkpoint 4), logged not dropped
-    assert any("scanned page" in e.lower() for e in parsed.errors)
-    # native pages still produced elements
-    assert {el.page for el in parsed.elements}.issubset({1, 2, 3, 5})
+
+    by_parser_page = {(el.source_parser, el.page) for el in parsed.elements}
+    # native pages parsed by docling
+    assert any(sp == "docling" and pg in {1, 2, 3, 5} for sp, pg in by_parser_page)
+    # the scanned page parsed by ocr
+    assert ("ocr", 4) in by_parser_page
+    assert parsed.stats["scanned_pages"] == 1 and parsed.stats["native_pages"] == 4
 
 
 # --- batch: writes JSON + manifest, is resumable ------------------------------

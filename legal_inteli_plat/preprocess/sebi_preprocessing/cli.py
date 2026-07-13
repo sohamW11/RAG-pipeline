@@ -15,6 +15,12 @@ from .pipeline import preprocess_path
 app = typer.Typer(help="SEBI PDF preprocessing (Phase 2).")
 
 
+@app.callback()
+def main() -> None:
+    """SEBI PDF preprocessing (Phase 2). Keeps ``preprocess`` as a named subcommand
+    (a single-command Typer app would otherwise drop the command name)."""
+
+
 @app.command()
 def preprocess(
     path: str = typer.Argument(..., help="PDF file or directory of PDFs."),

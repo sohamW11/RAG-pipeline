@@ -33,9 +33,11 @@ parsers:
     # (vector-line) tables; "stream" handles whitespace-delimited tables.
     flavor: lattice
   ocr:
-    # Pluggable English OCR adapter (Checkpoint 4). "tesseract" is the default
-    # concrete engine; the multilingual adapter drops in here later.
-    adapter: tesseract
+    # Pluggable English OCR adapter (Checkpoint 4). "tesseract" is the spec's
+    # named engine (needs the system tesseract binary); "rapidocr" is a pure-pip
+    # ONNX engine used where tesseract can't be installed. The multilingual
+    # adapter drops in here later (§9).
+    adapter: rapidocr
     language: eng
 
 # Table quality gate (CLAUDE.md §5). A table is flagged "broken" if ANY hold.
