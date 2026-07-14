@@ -1,0 +1,230 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SEBI knowledge graph</title>
+<style>
+:root{
+  --bg:#0c1016;--panel:#141a22;--ink:#e7eef7;--soft:#a3afc0;--faint:#6f7d90;--line:#28313d;--line-2:#3a4653;
+  --accent:#26a8ab;--mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden}
+#canvas{position:fixed;top:0;left:0;width:100vw;height:100vh;display:block}
+.top{position:fixed;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:12px;padding:12px 18px;flex-wrap:wrap;
+  background:linear-gradient(var(--bg),transparent)}
+.brand{font-weight:700;letter-spacing:-.01em;font-size:15px}.brand b{color:var(--accent)}
+select,input{background:var(--panel);border:1.5px solid var(--line-2);border-radius:10px;padding:8px 12px;color:var(--ink);
+  font-size:13.5px;font-family:var(--sans)}
+select{max-width:340px}
+input{width:min(34vw,320px)}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
+button{background:var(--accent);color:#04141a;border:0;border-radius:10px;padding:0 15px;height:36px;font-weight:650;cursor:pointer;font-size:13px}
+.meta{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+.legend{position:fixed;left:18px;bottom:18px;z-index:5;background:color-mix(in srgb,var(--panel) 88%,transparent);
+  border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-family:var(--mono);font-size:11px;color:var(--soft);backdrop-filter:blur(6px);max-width:230px}
+.legend h4{margin:0 0 7px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:600}
+.legend .row{display:flex;align-items:center;gap:8px;margin:4px 0}
+.legend .ln{width:20px;border-top:2px solid;flex:none}.legend .dt{width:10px;height:10px;border-radius:50%;flex:none}
+.info{position:fixed;right:18px;top:70px;z-index:5;width:min(30vw,300px);background:color-mix(in srgb,var(--panel) 92%,transparent);
+  border:1px solid var(--line);border-radius:12px;padding:14px 16px;backdrop-filter:blur(6px);display:none}
+.info.on{display:block}
+.info .t{font-weight:640;font-size:14px;margin-bottom:6px;line-height:1.35}
+.info .m{font-family:var(--mono);font-size:11px;color:var(--faint);display:flex;flex-wrap:wrap;gap:6px 12px}
+.info .stat{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:1px 6px;border-radius:5px}
+.stat.superseded{color:#e0697a;background:color-mix(in srgb,#e0697a 14%,transparent)}
+.stat.amended{color:#e0a234;background:color-mix(in srgb,#e0a234 14%,transparent)}
+.stat.live{color:#41b483;background:color-mix(in srgb,#41b483 14%,transparent)}
+.info .hint{font-size:12px;color:var(--soft);margin-top:8px}
+#tip{position:fixed;z-index:6;background:var(--panel);border:1px solid var(--line-2);border-radius:8px;padding:7px 10px;
+  font-size:12px;max-width:280px;pointer-events:none;display:none;box-shadow:0 8px 24px -12px #000}
+#tip .tt{font-weight:600;margin-bottom:3px}#tip .ts{font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+.bd{position:fixed;top:0;left:0;right:0;z-index:20;padding:11px 18px;background:#c0455a;color:#fff;font-size:13.5px;text-align:center}
+</style></head><body>
+<canvas id="canvas"></canvas>
+<div class="top">
+  <span class="brand">SEBI <b>knowledge graph</b></span>
+  <select id="picker"><option value="">▾ pick a document…</option></select>
+  <form id="f" style="display:flex;gap:8px"><input id="q" autocomplete="off" placeholder="or search a topic…"><button>Focus</button></form>
+  <button id="toggle" style="background:var(--panel);color:var(--soft);border:1px solid var(--line-2)">Radial view</button>
+  <button id="hubs" style="background:var(--panel);color:var(--soft);border:1px solid var(--line-2)">Hubs</button>
+  <span class="meta" id="meta">loading…</span>
+</div>
+<div class="info" id="info"></div>
+<div class="legend" id="legend"></div>
+<div id="tip"></div>
+<script>
+if(location.protocol==='file:'){document.body.innerHTML='<div class="bd">Open via the server: <b>http://127.0.0.1:8077/graph.html</b></div>';throw 0;}
+const cv=document.getElementById('canvas'),ctx=cv.getContext('2d'),$=id=>document.getElementById(id);
+const esc=s=>(s||'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+const PALETTE=['#26a8ab','#8a82e6','#e0a234','#5b8fca','#e0697a','#41b483','#d68fa8','#c9a227','#7bc47f','#b07de0','#68b0c9','#c9776b'];
+const RELCOLOR={supersedes:'#e0697a',amends:'#e0a234',references:'#4a5a78',consolidates:'#a683e6',read_with:'#5b8fca',affinity:'#26a8ab'};
+const RELORDER=['supersedes','amends','consolidates','references','read_with','affinity','other'];
+let DPR=Math.max(1,devicePixelRatio||1),W=0,H=0,nodes=[],edges=[],focus=null,hover=null;
+let viewMode='tree',isTree=false;   // focused docs default to the hierarchical tree
+const FONT='ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+function focusUrl(id){return '/api/graph?doc='+encodeURIComponent(id)+'&mode='+viewMode;}
+function shortLabel(n){ // strip the boilerplate so names are distinguishable
+  let t=(n.title||('doc '+n.id));
+  t=t.replace(/Securities and Exchange Board of India/ig,'').replace(/^SEBI/i,'')
+     .replace(/^[\s,\-–:]+/,'').replace(/\s+/g,' ').trim();
+  return t||('doc '+n.id);
+}
+function drawLabel(text,x,y,maxW,sz){ // wrap to at most 2 lines that fit maxW
+  const words=text.split(' ');let line='',lines=[];
+  for(const w of words){const t=line?line+' '+w:w;
+    if(ctx.measureText(t).width>maxW&&line){lines.push(line);line=w;}else line=t;
+    if(lines.length>=2)break;}
+  if(line&&lines.length<2)lines.push(line);
+  else if(line){let last=lines[1];while(last.length>3&&ctx.measureText(last+'…').width>maxW)last=last.slice(0,-1);lines[1]=last+'…';}
+  lines.slice(0,2).forEach((ln,i)=>ctx.fillText(ln,x,y+i*(sz+2)));
+}
+
+function setSize(){ // canvas is a replaced element — use the window size, not clientWidth
+  W=innerWidth;H=innerHeight;
+  cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+function resize(){setSize();layout();render();}
+addEventListener('resize',resize);
+addEventListener('focus',resize);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)resize();});
+function nodeRadius(n){return Math.min(5+Math.sqrt((n.degree||0)+1)*2,20)*(n.id===focus?1.5:1);}
+
+function relTo(n){ // primary relation of neighbour n to the focus (citation beats affinity)
+  let best=null;
+  for(const e of edges){
+    let nb=e.src===focus?e.dst:(e.dst===focus?e.src:null);
+    if(nb!==n.id)continue;
+    const rel=e.kind==='affinity'?'affinity':e.rel;
+    if(!best||best==='affinity') best=rel;
+  }
+  return best||'other';
+}
+function layoutTree(){
+  // tidy top-down tree: leaves get sequential x, parents centre over children
+  const children={};let maxD=0;
+  nodes.forEach(n=>{maxD=Math.max(maxD,n.depth||0);if(n.parent){(children[n.parent]=children[n.parent]||[]).push(n);}});
+  const root=nodes.find(n=>(n.depth||0)===0)||nodes[0];
+  let leaf=0;
+  (function place(n){const ks=children[n.id]||[];
+    if(!ks.length){n._lx=leaf++;}
+    else{ks.forEach(place);n._lx=(ks[0]._lx+ks[ks.length-1]._lx)/2;}
+  })(root);
+  const maxLeaf=Math.max(leaf-1,1),levelH=Math.min(170,(H-170)/(maxD+1));
+  nodes.forEach(n=>{n.x=70+((n._lx||0)/maxLeaf)*(W-140);n.y=115+(n.depth||0)*levelH;});
+}
+function layout(){
+  if(!nodes.length)return;
+  if(focus&&isTree){layoutTree();return;}
+  const cx=W/2,cy=H/2;
+  if(!focus){ // hub view: clean ring
+    const R=Math.min(W,H)*0.38;
+    nodes.forEach((n,i)=>{const a=-Math.PI/2+i/nodes.length*6.2832;n.x=cx+Math.cos(a)*R;n.y=cy+Math.sin(a)*R;});
+    return;
+  }
+  const f=nodes.find(n=>n.id===focus); if(f){f.x=cx;f.y=cy;}
+  const groups={};
+  for(const n of nodes){ if(n.id===focus)continue; const g=relTo(n); (groups[g]=groups[g]||[]).push(n); }
+  const present=RELORDER.filter(g=>groups[g]&&groups[g].length);
+  const total=present.reduce((s,g)=>s+groups[g].length,0)||1;
+  const R=Math.min(W,H)*0.33;
+  let ang=-Math.PI/2;
+  for(const g of present){
+    const wedge=Math.max(groups[g].length/total*6.2832,0.5);
+    const a0=ang,a1=ang+wedge,arr=groups[g];
+    arr.forEach((n,i)=>{
+      const t=arr.length===1?(a0+a1)/2:a0+(i+0.5)/arr.length*(a1-a0);
+      const rr=R*(0.9+0.34*(i%2));           // stagger so nodes don't overlap
+      n.x=cx+Math.cos(t)*rr;n.y=cy+Math.sin(t)*rr;n._rel=g;
+    });
+    ang=a1;
+  }
+}
+function isNeighbor(a,b){for(const e of edges){if((e.s===a&&e.t===b)||(e.s===b&&e.t===a))return true;}return false;}
+let animId=0;
+function startAnim(){ // BFS grow-in: each node eases out from its parent, staggered by depth
+  cancelAnimationFrame(animId);
+  const byId={};nodes.forEach(n=>byId[n.id]=n);
+  nodes.forEach(n=>{n.tx=n.x;n.ty=n.y;const p=(n.parent!=null)?byId[n.parent]:null;n.sx=p?p.tx:n.tx;n.sy=p?p.ty:n.ty;n.x=n.sx;n.y=n.sy;});
+  const maxD=Math.max(1,...nodes.map(n=>n.depth||0));
+  let t0=null;
+  function frame(ts){if(t0==null)t0=ts;const el=(ts-t0)/700;let done=true;
+    for(const n of nodes){const dly=(n.depth||0)/(maxD+1)*0.6;let p=(el-dly)/0.5;p=Math.max(0,Math.min(1,p));
+      const e=1-Math.pow(1-p,3);n.x=n.sx+(n.tx-n.sx)*e;n.y=n.sy+(n.ty-n.sy)*e;if(p<1)done=false;}
+    render();if(!done)animId=requestAnimationFrame(frame);}
+  animId=requestAnimationFrame(frame);
+}
+function render(){
+  ctx.clearRect(0,0,W,H);
+  for(const e of edges){
+    const hl=hover&&(e.s===hover||e.t===hover);
+    const r1=nodeRadius(e.s),r2=nodeRadius(e.t);
+    // straight diagonal branch from parent's lower edge to child's upper edge
+    const dx=e.t.x-e.s.x,dy=e.t.y-e.s.y,d=Math.hypot(dx,dy)||1;
+    ctx.beginPath();ctx.moveTo(e.s.x+dx/d*r1,e.s.y+dy/d*r1);ctx.lineTo(e.t.x-dx/d*r2,e.t.y-dy/d*r2);
+    if(e.kind==='affinity'){ctx.setLineDash([3,4]);ctx.strokeStyle=hl?'#26a8ab':'rgba(38,168,171,.32)';ctx.lineWidth=hl?1.8:1.1;}
+    else{ctx.setLineDash([]);ctx.strokeStyle=hl?(RELCOLOR[e.rel]||'#8895ad'):(RELCOLOR[e.rel]||'#4a5875');ctx.lineWidth=hl?2.6:1.8;}
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  for(const n of nodes){
+    const r=nodeRadius(n),col=n.community>=0?PALETTE[n.community%PALETTE.length]:'#5a6678';
+    ctx.globalAlpha=(hover&&hover!==n&&!isNeighbor(n,hover))?0.4:1;
+    ctx.beginPath();ctx.arc(n.x,n.y,r,0,6.2832);ctx.fillStyle=col;ctx.fill();ctx.globalAlpha=1;
+    if(n.status==='superseded'){ctx.lineWidth=2;ctx.strokeStyle='#e0697a';ctx.stroke();}
+    else if(n.status==='amended'){ctx.lineWidth=2;ctx.strokeStyle='#e0a234';ctx.stroke();}
+    if(n.id===focus||n===hover){ctx.lineWidth=2.5;ctx.strokeStyle='#fff';ctx.stroke();}
+    const showL=n.id===focus||n===hover||isTree||r>=10;
+    if(showL){
+      ctx.fillStyle=n.id===focus?'#fff':'#c7d2e2';ctx.textAlign='center';
+      const sz=n.id===focus?12:10.5;ctx.font=sz+'px '+FONT;
+      drawLabel(shortLabel(n),n.x,n.y+r+13,n.id===focus?300:150,sz);
+    }
+  }
+}
+async function load(url){
+  $('meta').textContent='loading…';
+  let d;try{const r=await fetch(url);if(!r.ok)throw 0;d=await r.json();}
+  catch(e){document.body.insertAdjacentHTML('afterbegin','<div class="bd">Backend not reachable from '+esc(location.host)+' — open <b>http://127.0.0.1:8077/graph.html</b> and restart rag_demo/server.py.</div>');return;}
+  focus=d.focus;isTree=(d.mode==='tree');const byId={};
+  nodes=d.nodes.map(n=>{const o={...n,x:W/2,y:H/2};byId[n.id]=o;return o;});
+  edges=d.edges.filter(e=>byId[e.src]&&byId[e.dst]).map(e=>({...e,s:byId[e.src],t:byId[e.dst]}));
+  setSize();layout();startAnim();
+  $('meta').textContent=(focus?('focus doc '+focus+' · '):'corpus hubs · ')+nodes.length+' nodes · '+edges.length+' edges';
+  showInfo(byId[focus]||null);
+}
+function nodeAt(mx,my){let best=null,bd=1e9;for(const n of nodes){const dx=n.x-mx,dy=n.y-my,d=dx*dx+dy*dy,r=nodeRadius(n)+6;if(d<r*r&&d<bd){bd=d;best=n;}}return best;}
+cv.addEventListener('mousemove',ev=>{const n=nodeAt(ev.clientX,ev.clientY);if(n!==hover){hover=n;render();}const tip=$('tip');
+  if(n){tip.style.display='block';tip.style.left=(ev.clientX+14)+'px';tip.style.top=(ev.clientY+12)+'px';
+    tip.innerHTML='<div class="tt">'+esc((n.title||'doc '+n.id).slice(0,72))+'</div><div class="ts">doc '+esc(n.id)+' · '+esc(n.subsection||'')+' · '+esc(n.status)+'</div>';cv.style.cursor='pointer';}
+  else{tip.style.display='none';cv.style.cursor='default';}});
+cv.addEventListener('click',ev=>{const n=nodeAt(ev.clientX,ev.clientY);if(n&&n.id!==focus){load(focusUrl(n.id));$('picker').value=n.id;}});
+$('f').addEventListener('submit',ev=>{ev.preventDefault();const q=$('q').value.trim();if(q)load(/^\d+$/.test(q)?focusUrl(q):'/api/graph?q='+encodeURIComponent(q)+'&mode='+viewMode);});
+$('picker').addEventListener('change',ev=>{if(ev.target.value)load(focusUrl(ev.target.value));});
+$('hubs').addEventListener('click',()=>{$('picker').value='';load('/api/graph');});
+$('toggle').addEventListener('click',()=>{
+  viewMode=viewMode==='tree'?'radial':'tree';
+  $('toggle').textContent=viewMode==='tree'?'Radial view':'Tree view';
+  if(focus)load(focusUrl(focus));
+});
+function showInfo(n){const el=$('info');if(!n){el.classList.remove('on');return;}el.classList.add('on');
+  el.innerHTML='<div class="t">'+esc(n.title||('doc '+n.id))+'</div><div class="m"><span class="stat '+n.status+'">'+esc(n.status)+
+    '</span><span>doc '+esc(n.id)+'</span><span>'+esc(n.subsection||'')+'</span><span>PageRank '+(n.pagerank||0).toFixed(4)+'</span><span>degree '+(n.degree||0)+'</span></div>'+
+    '<div class="hint">Branches are grouped by relation. Click a node to re-centre; solid=citation, dashed=affinity.</div>';}
+$('legend').innerHTML='<h4>edges (branches)</h4>'+
+  '<div class="row"><span class="ln" style="border-color:#e0697a"></span>supersedes</div>'+
+  '<div class="row"><span class="ln" style="border-color:#e0a234"></span>amends</div>'+
+  '<div class="row"><span class="ln" style="border-color:#5a6a86"></span>references</div>'+
+  '<div class="row"><span class="ln" style="border-color:#26a8ab;border-top-style:dashed"></span>affinity (theme)</div>'+
+  '<h4 style="margin-top:10px">nodes</h4>'+
+  '<div class="row"><span class="dt" style="background:#8a82e6"></span>colour = community</div>'+
+  '<div class="row"><span class="dt" style="background:#5a6678;box-shadow:0 0 0 2px #e0697a"></span>red ring = superseded</div>'+
+  '<div class="row"><span class="dt" style="background:#5a6678"></span>size = citation degree</div>';
+// populate dropdown, then open on a hierarchical tree of a master circular
+resize();
+fetch('/api/doclist').then(r=>r.json()).then(list=>{const p=$('picker');
+  for(const d of list){const o=document.createElement('option');o.value=d.doc_id;
+    o.textContent=(d.title||('doc '+d.doc_id)).slice(0,60)+' · '+(d.subsection||'');p.appendChild(o);}
+  const root=list[0];   // top-PageRank hub → richest hierarchy
+  if(root){p.value=root.doc_id;load(focusUrl(root.doc_id));}else{load('/api/graph');}
+}).catch(()=>load('/api/graph'));
+</script>
+</body></html>

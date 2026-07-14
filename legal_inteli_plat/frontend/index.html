@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SEBI corpus · agentic RAG</title>
+<style>
+:root{
+  --bg:#ffffff; --bg-2:#f6f8fc; --surface:#ffffff; --ink:#0b1220; --soft:#4a5568;
+  --faint:#8b95a7; --line:#e5e9f0; --line-2:#d5dbe6;
+  --accent:#2f6bff; --accent-ink:#1c4fd6; --accent-soft:#eaf0ff;
+  --gold:#b9791a; --good:#1f9a63; --violet:#6d5ae0;
+  --dot:rgba(47,107,255,.14);
+  --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+  --sans:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#080a0f; --bg-2:#0d1017; --surface:#12161f; --ink:#eaf0fa; --soft:#a6b2c6;
+    --faint:#6b7789; --line:#1e2530; --line-2:#2a3340;
+    --accent:#5b8cff; --accent-ink:#7ba3ff; --accent-soft:#141d33;
+    --gold:#e0a63a; --good:#3ec98a; --violet:#9a86f5;
+    --dot:rgba(91,140,255,.16);
+  }
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;min-height:100%;
+  background-image:radial-gradient(var(--dot) 1px,transparent 1.4px);
+  background-size:22px 22px;background-attachment:fixed;
+}
+a{color:inherit}
+button{font-family:inherit}
+
+/* ---- top nav ---- */
+nav{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;
+  padding:13px 22px;background:color-mix(in srgb,var(--bg) 82%,transparent);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:-.02em;font-size:16px}
+.glyph{width:22px;height:22px;flex:none;display:grid;place-items:center;color:var(--accent)}
+.brand b{color:var(--accent)}
+.nav-meta{margin-left:auto;display:flex;gap:16px;font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+.nav-meta b{color:var(--ink);font-variant-numeric:tabular-nums}
+.pill-mode{padding:2px 9px;border-radius:999px;border:1px solid var(--line-2);
+  color:var(--soft);text-transform:uppercase;letter-spacing:.08em}
+
+/* ---- hero ---- */
+main{flex:1;width:100%}
+.hero{max-width:760px;margin:0 auto;padding:min(12vh,90px) 22px 40px;text-align:center}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--accent);margin:0 0 22px;display:inline-flex;align-items:center;gap:8px}
+.eyebrow::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 0 4px var(--accent-soft)}
+.hero h1{font-size:clamp(34px,7vw,64px);line-height:1.02;letter-spacing:-.035em;margin:0 0 20px;
+  font-weight:800;text-wrap:balance}
+.hero h1 .a{color:var(--accent)}
+.hero p.sub{font-size:clamp(16px,2vw,19px);color:var(--soft);max-width:56ch;margin:0 auto 34px;text-wrap:balance}
+
+/* ---- ask box ---- */
+.askwrap{max-width:680px;margin:0 auto}
+.ask{display:flex;gap:9px;background:var(--surface);border:1.5px solid var(--line-2);
+  border-radius:15px;padding:8px 8px 8px 16px;box-shadow:0 8px 30px -18px rgba(20,40,120,.45);
+  transition:border-color .15s,box-shadow .15s}
+.ask:focus-within{border-color:var(--accent);box-shadow:0 10px 34px -16px color-mix(in srgb,var(--accent) 55%,transparent)}
+.ask input{flex:1;border:0;background:transparent;color:var(--ink);font-size:16px;outline:none;font-family:var(--sans)}
+.ask button{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:0 20px;height:44px;
+  font-weight:650;font-size:14.5px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:background .15s}
+.ask button:hover{background:var(--accent-ink)}
+.ask button:disabled{opacity:.55;cursor:default}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:18px}
+.chip{font-family:var(--mono);font-size:12px;color:var(--soft);background:var(--surface);
+  border:1px solid var(--line-2);border-radius:999px;padding:6px 13px;cursor:pointer;transition:.14s}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.hero-stats{margin-top:30px;font-family:var(--mono);font-size:12px;color:var(--faint);display:flex;
+  gap:22px;justify-content:center;flex-wrap:wrap}
+.hero-stats b{color:var(--ink);font-variant-numeric:tabular-nums}
+
+/* ---- conversation ---- */
+.convo{max-width:760px;margin:0 auto;padding:20px 22px 40px;display:none;flex-direction:column;gap:26px}
+.turn{display:flex;flex-direction:column;gap:9px}
+.who{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+.q{align-self:flex-end;max-width:85%;background:var(--accent);color:#fff;border-radius:14px 14px 4px 14px;
+  padding:11px 16px;font-weight:500;box-shadow:0 6px 20px -12px color-mix(in srgb,var(--accent) 70%,transparent)}
+.a-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+
+/* reasoning trace */
+.trace{border-bottom:1px solid var(--line);background:var(--bg-2)}
+.trace summary{list-style:none;cursor:pointer;padding:10px 16px;display:flex;align-items:center;gap:9px;
+  font-family:var(--mono);font-size:11.5px;color:var(--soft);letter-spacing:.03em}
+.trace summary::-webkit-details-marker{display:none}
+.trace summary .cnt{margin-left:auto;color:var(--faint)}
+.trace .steps{padding:2px 16px 12px 16px;display:flex;flex-direction:column;gap:0}
+.step{position:relative;padding:6px 0 6px 22px;font-family:var(--mono);font-size:12px;color:var(--soft)}
+.step::before{content:"";position:absolute;left:5px;top:12px;width:7px;height:7px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.step::after{content:"";position:absolute;left:8px;top:19px;bottom:-6px;width:1px;background:var(--line-2)}
+.step:last-child::after{display:none}
+.spin{width:12px;height:12px;border:2px solid var(--line-2);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* answer body */
+.a-body{padding:15px 17px}
+.answer{white-space:pre-wrap;font-size:15.5px}
+.answer .cite{font-family:var(--mono);font-size:11px;color:var(--accent);
+  background:var(--accent-soft);padding:1px 6px;border-radius:5px;white-space:nowrap}
+.badge{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  padding:2px 8px;border-radius:5px;margin-left:8px;vertical-align:middle}
+.badge.extractive{color:var(--gold);background:color-mix(in srgb,var(--gold) 15%,transparent)}
+.badge.generative{color:var(--good);background:color-mix(in srgb,var(--good) 15%,transparent)}
+
+/* clarify options */
+.options{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
+.opt{font-size:13px;color:var(--accent);background:var(--accent-soft);border:1px solid transparent;
+  border-radius:9px;padding:8px 13px;cursor:pointer;text-align:left;transition:.14s;font-weight:520}
+.opt:hover{border-color:var(--accent)}
+
+/* sources */
+.sources{border-top:1px solid var(--line);padding:12px 17px 15px}
+.src-h{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--faint);margin-bottom:9px}
+.src{border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-bottom:8px;background:var(--bg-2)}
+.src .top{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:4px}
+.src .t{font-weight:640;font-size:13.5px}
+.tag{font-family:var(--mono);font-size:10px;color:var(--faint);border:1px solid var(--line-2);
+  border-radius:5px;padding:1px 6px}
+.tag.tbl{color:var(--violet);border-color:color-mix(in srgb,var(--violet) 38%,transparent)}
+.src .sc{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--accent);font-variant-numeric:tabular-nums}
+.src .snip{font-size:12.5px;color:var(--soft);font-family:var(--mono);line-height:1.5;margin:3px 0 6px;
+  max-height:4.6em;overflow:hidden}
+.src .foot{display:flex;gap:11px;flex-wrap:wrap;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+.src .foot a{color:var(--accent);text-decoration:none}
+.src .foot a:hover{text-decoration:underline}
+.src.stale{opacity:.72;border-style:dashed}
+.stat{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  padding:1px 6px;border-radius:5px;border:1px solid transparent}
+.stat.sup{color:#c0455a;background:color-mix(in srgb,#c0455a 12%,transparent);border-color:color-mix(in srgb,#c0455a 34%,transparent)}
+.stat.amd{color:var(--gold);background:color-mix(in srgb,var(--gold) 14%,transparent);border-color:color-mix(in srgb,var(--gold) 34%,transparent)}
+.curnote{font-size:12px;color:var(--soft);margin:5px 0 2px;padding:5px 9px;border-radius:7px;
+  background:color-mix(in srgb,var(--good) 9%,transparent);border:1px solid color-mix(in srgb,var(--good) 26%,transparent)}
+.curnote b{color:var(--ink)}
+.concept{font-family:var(--mono);font-size:11.5px;padding:4px 10px;border-radius:999px;
+  border:1px solid var(--line-2);color:var(--soft);background:var(--surface)}
+.concept.k-intermediary{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 34%,transparent)}
+.concept.k-regulation_name{color:var(--violet);border-color:color-mix(in srgb,var(--violet) 34%,transparent)}
+.concept.k-provision{color:var(--gold);border-color:color-mix(in srgb,var(--gold) 34%,transparent)}
+
+/* follow-ups */
+.followups{padding:0 17px 16px}
+.fu-h{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+.fu{display:flex;flex-wrap:wrap;gap:8px}
+.fchip{font-size:12.5px;color:var(--soft);background:var(--surface);border:1px solid var(--line-2);
+  border-radius:999px;padding:6px 13px;cursor:pointer;transition:.14s}
+.fchip:hover{border-color:var(--accent);color:var(--accent)}
+.fchip::before{content:"→ ";color:var(--accent)}
+
+/* sticky composer (chat mode) */
+.composer{position:sticky;bottom:0;background:color-mix(in srgb,var(--bg) 86%,transparent);
+  backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:12px 22px;display:none}
+.composer .ask{max-width:760px;margin:0 auto}
+
+footer{max-width:760px;margin:0 auto;padding:26px 22px 40px;font-family:var(--mono);font-size:11px;
+  color:var(--faint);text-align:center}
+.disclaim{margin-top:6px;color:var(--faint)}
+
+@media (max-width:640px){.nav-meta .hidesm{display:none}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="brand">
+    <span class="glyph"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M10 1.5 2 6v8l8 4.5L18 14V6L10 1.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+      <path d="M10 1.5v17M2 6l8 4.5L18 6" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>
+    SEBI <b>&nbsp;corpus</b>
+  </div>
+  <div class="nav-meta">
+    <span class="hidesm"><b id="m-docs">–</b> docs</span>
+    <span class="hidesm"><b id="m-pass">–</b> passages</span>
+    <span class="pill-mode" id="m-mode">…</span>
+  </div>
+</nav>
+
+<main>
+  <!-- hero (initial) -->
+  <section class="hero" id="hero">
+    <p class="eyebrow">Agentic RAG · Phase 3 demo</p>
+    <h1>The context cloud for <span class="a">SEBI</span> regulation.</h1>
+    <p class="sub">Ask anything across the parsed corpus of SEBI circulars, regulations and filings. The agent plans its search, retrieves the passages, cites every claim to a source page — and asks you a follow-up when the question is broad.</p>
+    <div class="askwrap">
+      <form class="ask" id="hero-form">
+        <input id="hero-input" type="text" autocomplete="off" autofocus
+          placeholder="e.g. What are the criteria for a vanishing company?">
+        <button type="submit">Ask <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M3 8h9M8 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </form>
+      <div class="chips" id="examples"></div>
+      <div class="hero-stats">
+        <span><b id="h-docs">–</b> documents</span>
+        <span><b id="h-pass">–</b> passages indexed</span>
+        <span>BM25 · <b id="h-mode">…</b></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- conversation -->
+  <section class="convo" id="convo"></section>
+  <footer id="foot" style="display:none">
+    Retrieval-grounded · every claim links to <span style="color:var(--accent)">doc_id · page · section</span>
+    <div class="disclaim">Demo over the Phase-2 parsed output — not legal advice. Answers are extractive unless a Claude key is set.</div>
+  </footer>
+</main>
+
+<!-- sticky composer (chat mode) -->
+<div class="composer" id="composer">
+  <form class="ask" id="chat-form">
+    <input id="chat-input" type="text" autocomplete="off" placeholder="Ask a follow-up…">
+    <button type="submit">Ask <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M3 8h9M8 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  </form>
+</div>
+
+<script>
+const EXAMPLES=[
+  "What are the criteria for a vanishing company?",
+  "Penalty for insider trading in listed companies",
+  "Compare mutual funds and alternative investment funds disclosure",
+  "Obligations of bankers to an issue",
+];
+// Guard: this page needs its backend. Opened as a file:// it can't reach the API.
+if(location.protocol==='file:'){
+  document.body.innerHTML='<div style="max-width:560px;margin:16vh auto;padding:0 24px;'+
+    'font-family:var(--sans);text-align:center;color:var(--ink)">'+
+    '<div style="font-size:26px;font-weight:800;letter-spacing:-.02em;margin-bottom:14px">Open via the server, not the file</div>'+
+    '<p style="color:var(--soft);font-size:16px;line-height:1.6">This page talks to a local backend for retrieval. '+
+    'Loading it directly as a file has no backend, so search fails.</p>'+
+    '<div style="margin-top:22px;font-family:var(--mono);font-size:15px;background:var(--bg-2);'+
+    'border:1px solid var(--line-2);border-radius:12px;padding:16px;color:var(--accent)">'+
+    'Go to → http://127.0.0.1:8077</div>'+
+    '<p style="color:var(--faint);font-size:13px;margin-top:20px;font-family:var(--mono)">'+
+    'start it with: rag_demo/ → python server.py</p></div>';
+  throw new Error('opened as file://');
+}
+const $=id=>document.getElementById(id);
+const convo=$('convo'), hero=$('hero'), composer=$('composer'), foot=$('foot');
+let history=[];      // {role,content}
+let started=false;
+
+// ---- backend reachability guard (handles wrong-port / Live Server too) ----
+let backendOk=true;
+function backendDown(){
+  if(document.getElementById('bd-banner'))return;
+  backendOk=false;
+  const el=document.createElement('div');el.id='bd-banner';
+  el.style.cssText='position:fixed;top:0;left:0;right:0;z-index:999;padding:11px 18px;'+
+    'background:#c0455a;color:#fff;font-family:var(--sans);font-size:13.5px;text-align:center;line-height:1.5';
+  el.innerHTML='⚠ Backend not reachable from <b>'+esc(location.host||'file://')+'</b> — '+
+    'open <b>http://127.0.0.1:8077</b> instead. Start it: <code style="background:rgba(0,0,0,.2);padding:1px 6px;border-radius:4px">cd rag_demo &amp;&amp; python server.py</code>. '+
+    '(Not VS Code Live Server on :5500, and not the file directly.)';
+  document.body.appendChild(el);
+}
+// ---- boot: load corpus meta ----
+fetch('/meta').then(r=>{if(!r.ok)throw 0;return r.json();}).then(m=>{
+  const mode=m.mode==='claude'?'Claude answers':'extractive';
+  const edges=m.edges?' · '+m.edges.toLocaleString()+' links':'';
+  $('m-docs').textContent=m.docs.toLocaleString();
+  $('m-pass').textContent=m.passages.toLocaleString();
+  $('m-mode').textContent=mode;
+  $('h-docs').textContent=m.docs.toLocaleString();
+  $('h-pass').textContent=m.passages.toLocaleString();
+  $('h-mode').textContent=mode+edges;
+}).catch(()=>backendDown());
+
+const exWrap=$('examples');
+EXAMPLES.forEach(t=>{const c=document.createElement('div');c.className='chip';c.textContent=t;
+  c.onclick=()=>submit(t);exWrap.appendChild(c);});
+
+function esc(s){return (s||'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
+function citeify(s){return esc(s).replace(/\[([^\]]+)\]/g,'<span class="cite">[$1]</span>');}
+function scrollDown(){window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});}
+
+function enterChatMode(){
+  if(started)return; started=true;
+  hero.style.display='none'; convo.style.display='flex';
+  composer.style.display='block'; foot.style.display='block';
+}
+
+function addUser(text){
+  const t=document.createElement('div');t.className='turn';
+  t.innerHTML='<div class="who" style="text-align:right">You</div><div class="q">'+esc(text)+'</div>';
+  convo.appendChild(t);scrollDown();
+}
+
+function loadingCard(){
+  const t=document.createElement('div');t.className='turn';
+  t.innerHTML='<div class="who">Agent</div><div class="a-card"><div class="a-body">'+
+    '<span class="spin"></span> <span style="font-family:var(--mono);font-size:12.5px;color:var(--soft)">planning &amp; searching…</span></div></div>';
+  convo.appendChild(t);scrollDown();return t;
+}
+
+function renderTrace(trace){
+  if(!trace||!trace.length)return '';
+  let s='<details class="trace" open><summary>Agent reasoning<span class="cnt">'+trace.length+' steps</span></summary><div class="steps">';
+  for(const step of trace) s+='<div class="step">'+esc(step)+'</div>';
+  return s+'</div></details>';
+}
+function renderConcepts(list){
+  if(!list||!list.length)return '';
+  let s='<div class="a-body" style="padding-top:0"><div class="src-h">Key concepts</div><div class="fu">';
+  for(const c of list) s+='<span class="concept k-'+esc(c.kind)+'">'+esc(c.name)+'</span>';
+  return s+'</div></div>';
+}
+function renderTheme(list){
+  if(!list||!list.length)return '';
+  const SIG={co_citation:'co-cited',coupling:'shared refs',entity:'shared concepts'};
+  let s='<div class="sources" style="border-top:1px dashed var(--line)"><div class="src-h">Related by theme · memory layer</div>';
+  for(const r of list){
+    const sig=(r.signals||[]).map(x=>SIG[x]||x).join(' · ');
+    const badge=r.status==='superseded'?'<span class="stat sup">superseded</span>':'';
+    s+='<div class="src" style="display:flex;align-items:center;gap:10px">'+
+       '<span class="t" style="flex:1">'+esc(r.title||('doc '+r.doc_id))+badge+'</span>'+
+       '<span style="font-family:var(--mono);font-size:10px;color:var(--faint)">'+esc(sig)+'</span>'+
+       '<span style="font-family:var(--mono);font-size:10.5px;color:var(--faint)">doc '+esc(r.doc_id)+'</span></div>';
+  }
+  return s+'</div>';
+}
+function statusBadge(x){
+  if(x.status==='superseded')return '<span class="stat sup">⚠ superseded</span>';
+  if(x.status==='amended')return '<span class="stat amd">amended</span>';
+  return '';
+}
+function currencyNote(x){
+  if(x.status!=='superseded'||!x.superseded_by)return '';
+  const d=x.superseded_by_date?' ('+esc(String(x.superseded_by_date).slice(0,10))+')':'';
+  return '<div class="curnote">→ current version: <b>'+esc(x.superseded_by_title||('doc '+x.superseded_by))+
+         '</b> <span style="color:var(--faint)">doc '+esc(x.superseded_by)+d+'</span></div>';
+}
+function renderSources(sources){
+  if(!sources||!sources.length)return '';
+  let s='<div class="sources"><div class="src-h">'+sources.length+' sources</div>';
+  for(const x of sources){
+    const tbl=x.kind==='table'?'<span class="tag tbl">table</span>':'';
+    const sub=x.subsection?'<span class="tag">'+esc(x.subsection)+'</span>':'';
+    const url=x.url?'<a href="'+esc(x.url)+'" target="_blank" rel="noopener">source ↗</a>':'';
+    const date=x.date?'<span>'+esc(x.date)+'</span>':'';
+    const sec=x.section?'<span>§ '+esc(x.section)+'</span>':'';
+    s+='<div class="src'+(x.status==='superseded'?' stale':'')+'"><div class="top"><span class="t">'+esc(x.title)+'</span>'+
+       statusBadge(x)+tbl+sub+'<span class="sc">score '+x.score+'</span></div>'+
+       currencyNote(x)+'<div class="snip">'+esc(x.snippet)+
+       '</div><div class="foot"><span>doc '+esc(x.doc_id)+'</span><span>p.'+x.page+'</span>'+sec+date+url+'</div></div>';
+  }
+  return s+'</div>';
+}
+function renderFollowups(list,kind){
+  if(!list||!list.length)return '';
+  const cls=kind==='opt'?'opt':'fchip';
+  let s='<div class="'+(kind==='opt'?'options':'followups')+'">';
+  if(kind!=='opt') s='<div class="followups"><div class="fu-h">Continue</div><div class="fu">';
+  for(const q of list) s+='<button class="'+cls+'" data-q="'+esc(q)+'">'+esc(q)+'</button>';
+  return s+(kind==='opt'?'</div>':'</div></div>');
+}
+
+function renderRelated(list){
+  if(!list||!list.length)return '';
+  const RELV={supersedes:'supersedes',amends:'amends',read_with:'read with',references:'references'};
+  let s='<div class="sources" style="border-top:1px dashed var(--line)"><div class="srch">Related documents · via reference graph</div>';
+  for(const r of list){
+    const arrow=r.direction==='cited_by'?'← cited by':'→ '+(RELV[r.relation]||r.relation);
+    const badge=r.status==='superseded'?'<span class="stat sup">superseded</span>':(r.status==='amended'?'<span class="stat amd">amended</span>':'');
+    s+='<div class="src" style="display:flex;align-items:center;gap:10px">'+
+       '<span class="tag" style="color:var(--accent);border-color:color-mix(in srgb,var(--accent) 34%,transparent)">'+esc(arrow)+'</span>'+
+       '<span class="t" style="flex:1">'+esc(r.title||('doc '+r.doc_id))+badge+'</span>'+
+       '<span style="font-family:var(--mono);font-size:10.5px;color:var(--faint)">doc '+esc(r.doc_id)+'</span></div>';
+  }
+  return s+'</div>';
+}
+function renderAgent(res){
+  const badge=res.mode?'<span class="badge '+res.mode+'">'+res.mode+'</span>':'';
+  let inner=renderTrace(res.trace);
+  inner+='<div class="a-body"><div class="answer">'+citeify(res.answer)+badge+'</div>';
+  if(res.type==='clarify') inner+=renderFollowups(res.options,'opt');
+  inner+='</div>';
+  inner+=renderConcepts(res.concepts);
+  inner+=renderSources(res.sources);
+  inner+=renderRelated(res.related);
+  inner+=renderTheme(res.related_theme);
+  inner+=renderFollowups(res.followups,'fu');
+  const t=document.createElement('div');t.className='turn';
+  t.innerHTML='<div class="who">Agent</div><div class="a-card">'+inner+'</div>';
+  return t;
+}
+
+async function submit(text){
+  text=(text||'').trim(); if(!text)return;
+  enterChatMode();
+  $('hero-input').value=''; $('chat-input').value='';
+  addUser(text);
+  const load=loadingCard();
+  const btns=document.querySelectorAll('.ask button'); btns.forEach(b=>b.disabled=true);
+  try{
+    const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:text,history})});
+    const res=await r.json();
+    load.remove();
+    convo.appendChild(renderAgent(res));
+    history.push({role:'user',content:text});
+    history.push({role:'assistant',content:res.answer});
+    if(history.length>12) history=history.slice(-12);
+  }catch(err){
+    backendDown();
+    load.querySelector('.a-body').innerHTML='<span style="color:#c0455a">Backend not reachable — see the banner above. (Open http://127.0.0.1:8077, not :5500.)</span>';
+  }
+  btns.forEach(b=>b.disabled=false); scrollDown(); $('chat-input').focus();
+}
+
+$('hero-form').addEventListener('submit',e=>{e.preventDefault();submit($('hero-input').value);});
+$('chat-form').addEventListener('submit',e=>{e.preventDefault();submit($('chat-input').value);});
+// delegate clicks on option / follow-up chips
+convo.addEventListener('click',e=>{const b=e.target.closest('[data-q]');if(b)submit(b.dataset.q);});
+</script>
+</body>
+</html>
