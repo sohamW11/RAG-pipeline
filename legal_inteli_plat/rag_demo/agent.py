@@ -178,17 +178,28 @@ class Agent:
         sources = [rag._source_dict(c, s) for c, s in hits]
         self._annotate_status(sources, trace)
 
-        # memory layer: thematically-related docs (affinity) + key concepts
+        # memory layer: unified fused relatedness (citation + affinity) + key concepts
         top_docs = list(dict.fromkeys(c.doc_id for c, _ in hits))[:5]
-        related_theme = self.index.related_by_theme(top_docs, 8) if hasattr(self.index, "related_by_theme") else []
+        if hasattr(self.index, "related_fused"):
+            related_theme = self.index.related_fused(top_docs, 8)
+        elif hasattr(self.index, "related_by_theme"):
+            related_theme = self.index.related_by_theme(top_docs, 8)
+        else:
+            related_theme = []
         concepts = self.index.concepts(top_docs) if hasattr(self.index, "concepts") else []
         if related_theme or concepts:
             bits = []
             if related_theme:
-                bits.append(f"{len(related_theme)} thematically-related docs")
+                bits.append(f"{len(related_theme)} related docs (fused)")
             if concepts:
                 bits.append("key concepts: " + ", ".join(c["name"] for c in concepts[:4]))
             trace.append("Memory layer: " + " · ".join(bits))
+
+        # temporal version threads: answer from the in-force version, show history
+        timelines = self.index.thread_info(top_docs) if hasattr(self.index, "thread_info") else []
+        if timelines:
+            trace.append("Version threads: " + str(len(timelines)) + " timeline(s) — answering from "
+                         "the in-force version, older ones shown as history")
 
         trace.append(f"Synthesising a grounded answer from the top "
                      f"{min(4, len(hits))} passages")
@@ -203,6 +214,7 @@ class Agent:
             "related": related,
             "related_theme": related_theme,
             "concepts": concepts,
+            "timelines": timelines,
             "followups": self._followups(query, hits),
         }
 

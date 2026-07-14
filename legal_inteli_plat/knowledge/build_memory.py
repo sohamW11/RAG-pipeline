@@ -11,6 +11,7 @@ from datetime import datetime
 
 import kb
 import memory
+import threads
 
 
 def main() -> None:
@@ -33,6 +34,10 @@ def main() -> None:
     memory.build_metrics(con)
     ncomm = con.execute("SELECT COUNT(DISTINCT community) FROM doc_metrics").fetchone()[0]
     print(f"  communities       {ncomm} · PageRank + degree stored")
+
+    th = threads.build_threads(con)
+    print(f"  version threads   {th['threads']} threads over {th['threaded_docs']} docs "
+          f"(+{th['inferred_edges']} inferred edges, largest {th['largest']})")
     print(f"  built in {(datetime.now()-t0).total_seconds():.1f}s")
 
     print("\n  top documents by PageRank (the corpus's hubs):")

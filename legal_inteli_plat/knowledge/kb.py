@@ -28,7 +28,9 @@ SCHEMA = """
 CREATE TABLE documents(
   doc_id TEXT PRIMARY KEY, title TEXT, date TEXT, subsection TEXT, department TEXT,
   doc_type TEXT, url TEXT, circular_no TEXT, n_elements INTEGER, page_count INTEGER,
-  status TEXT DEFAULT 'live', superseded_by TEXT
+  status TEXT DEFAULT 'live', superseded_by TEXT,
+  -- temporal version-thread columns (populated by threads.build_threads)
+  effective_from TEXT, effective_to TEXT, thread_id INTEGER, thread_seq INTEGER
 );
 CREATE TABLE chunks(
   chunk_id TEXT PRIMARY KEY, doc_id TEXT, page INTEGER, section TEXT, kind TEXT, text TEXT

@@ -12,6 +12,7 @@ from __future__ import annotations
 import sqlite3
 import sys
 import threading
+from collections import defaultdict
 from pathlib import Path
 
 import rag
@@ -22,8 +23,10 @@ sys.path.insert(0, str(_KNOW))
 import kb as knowledge_kb  # noqa: E402
 try:
     import memory as knowledge_memory  # noqa: E402
+    import threads as knowledge_threads  # noqa: E402
 except Exception:
     knowledge_memory = None
+    knowledge_threads = None
 
 
 class KBIndex:
@@ -138,6 +141,44 @@ class KBIndex:
             return []
         with self._lock:
             return knowledge_memory.concepts_for(self._con, doc_ids, top)
+
+    def related_fused(self, doc_ids: list[str], k: int = 8) -> list[dict]:
+        """Unified relatedness across the seed docs: RRF fusion of citation +
+        affinity signals (memory.relatedness), merged and re-ranked."""
+        if not self._has_memory():
+            return []
+        seeds = set(doc_ids)
+        agg: dict[str, dict] = defaultdict(
+            lambda: {"score": 0.0, "signals": set(), "title": None, "subsection": None, "status": None})
+        with self._lock:
+            for d in doc_ids:
+                for r in knowledge_memory.relatedness(self._con, d, k=k, use_citation=True):
+                    if r["doc_id"] in seeds:
+                        continue
+                    a = agg[r["doc_id"]]
+                    a["score"] += r["score"]
+                    a["signals"].update(r["signals"])
+                    a["title"], a["subsection"], a["status"] = r["title"], r["subsection"], r["status"]
+        ranked = sorted(agg.items(), key=lambda x: -x[1]["score"])[:k]
+        return [{"doc_id": d, "title": v["title"], "subsection": v["subsection"],
+                 "status": v["status"], "score": round(v["score"], 4),
+                 "signals": sorted(v["signals"])} for d, v in ranked]
+
+    def thread_info(self, doc_ids: list[str]) -> list[dict]:
+        """Version timelines for any retrieved docs that belong to a thread."""
+        if knowledge_threads is None:
+            return []
+        out, seen = [], set()
+        with self._lock:
+            for d in doc_ids:
+                try:
+                    t = knowledge_threads.thread_of(self._con, d)
+                except Exception:
+                    t = None
+                if t and t["thread_id"] not in seen:
+                    seen.add(t["thread_id"])
+                    out.append(t)
+        return out
 
     def graph(self, focus: str | None = None, mode: str = "radial") -> dict:
         if not self._has_memory():

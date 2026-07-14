@@ -342,6 +342,51 @@ def hub_graph(con: sqlite3.Connection, n: int = 28) -> dict:
     return {"focus": None, "nodes": [_gnode(con, d) for d in top], "edges": edges}
 
 
+def relatedness(con: sqlite3.Connection, doc_id: str, k: int = 10,
+                use_citation: bool = True) -> list[dict]:
+    """UNIFIED relatedness — one ranked list fusing every signal by Reciprocal
+    Rank Fusion (RRF). Each signal contributes an ordered list; a doc's score is
+    Σ 1/(K+rank). RRF needs no cross-signal calibration, so citation confidence,
+    affinity weight and (future) semantic cosine combine without a scale fight.
+
+    Signals fused: citation-out, citation-in, co_citation, coupling, entity.
+    `use_citation=False` drops the citation lists — used by the benchmark so the
+    structural/thematic signals must PREDICT citations rather than copy them.
+    """
+    lists: list[list[str]] = []
+    tag: dict[str, set] = defaultdict(set)
+
+    def add(rows, name):
+        seq = [r[0] for r in rows if r[0] != doc_id]
+        if seq:
+            lists.append(seq)
+            for d in seq:
+                tag[d].add(name)
+
+    if use_citation:
+        add(con.execute("SELECT dst_doc FROM edges WHERE src_doc=? ORDER BY confidence DESC", (doc_id,)), "cites")
+        add(con.execute("SELECT src_doc FROM edges WHERE dst_doc=? ORDER BY confidence DESC", (doc_id,)), "cited-by")
+    for sig in ("co_citation", "coupling", "entity"):
+        add(con.execute("SELECT dst_doc FROM affinity WHERE src_doc=? AND signal=? "
+                        "ORDER BY weight DESC LIMIT 40", (doc_id, sig)), sig)
+
+    K = 60
+    score: dict[str, float] = defaultdict(float)
+    for seq in lists:
+        for rank, d in enumerate(seq):
+            score[d] += 1.0 / (K + rank + 1)
+    ranked = sorted(score.items(), key=lambda x: -x[1])[:k]
+
+    out = []
+    for d, s in ranked:
+        row = con.execute("SELECT title, subsection, status FROM documents WHERE doc_id=?", (d,)).fetchone()
+        out.append({"doc_id": d, "score": round(s, 4), "signals": sorted(tag[d]),
+                    "title": row["title"] if row else None,
+                    "subsection": row["subsection"] if row else None,
+                    "status": row["status"] if row else None})
+    return out
+
+
 def entities_of(con: sqlite3.Connection, doc_id: str, top: int = 8) -> list[dict]:
     rows = con.execute(
         """SELECT e.name, e.kind, e.df, de.count FROM doc_entities de
