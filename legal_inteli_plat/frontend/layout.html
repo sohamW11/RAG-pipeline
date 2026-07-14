@@ -1,0 +1,443 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Layout understanding · query the corpus</title>
+<style>
+:root{
+  --bg:#eef1f6;--surface:#fff;--surface-2:#e7ebf2;--ink:#151c27;--soft:#54606f;
+  --faint:#8892a3;--line:#d3d9e3;--line-2:#c2cad6;
+  --scout:#63708a;--docling:#0e8285;--derived:#5a52bd;--new:#c07d12;--gap:#c0475a;--good:#2f9265;
+  --heading:#5a52bd;--para:#5f7186;--list:#3a6ea5;--table:#7b53c6;--figure:#0e8285;--furniture:#b0728a;--caption:#0e8285;
+  --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0c1016;--surface:#141a22;--surface-2:#1b232e;--ink:#e7eef7;--soft:#a3afc0;
+  --faint:#6f7d90;--line:#28313d;--line-2:#3a4653;
+  --scout:#8b97ad;--docling:#26a8ab;--derived:#8a82e6;--new:#e0a234;--gap:#e0697a;--good:#41b483;
+  --heading:#8a82e6;--para:#8fa0b5;--list:#5b8fca;--table:#a683e6;--figure:#26a8ab;--furniture:#d68fa8;--caption:#26a8ab;}}
+:root[data-theme="light"]{--bg:#eef1f6;--surface:#fff;--ink:#151c27;--line:#d3d9e3}
+:root[data-theme="dark"]{--bg:#0c1016;--surface:#141a22;--ink:#e7eef7;--line:#28313d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 22px 60px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin:0 0 10px}
+h1{font-size:clamp(22px,3.2vw,31px);letter-spacing:-.02em;margin:0 0 8px;font-weight:720;text-wrap:balance}
+.sub{color:var(--soft);max-width:74ch;margin:0 0 18px}
+
+/* search + docs strip */
+.searchbar{display:flex;gap:9px;max-width:620px;margin-bottom:14px}
+.searchbar input{flex:1;background:var(--surface);border:1.5px solid var(--line-2);border-radius:11px;padding:11px 15px;
+  font-size:15px;color:var(--ink);font-family:var(--sans)}
+.searchbar input:focus{outline:2px solid var(--docling);outline-offset:1px}
+.searchbar button{background:var(--docling);color:#fff;border:0;border-radius:11px;padding:0 20px;font-weight:650;cursor:pointer;font-size:14px}
+.docstrip{display:flex;gap:9px;overflow-x:auto;padding:2px 2px 12px;margin-bottom:14px}
+.docchip{flex:none;min-width:190px;max-width:240px;background:var(--surface);border:1px solid var(--line-2);
+  border-radius:11px;padding:10px 13px;cursor:pointer;transition:.14s;text-align:left}
+.docchip:hover{border-color:var(--docling)}
+.docchip.active{border-color:var(--docling);box-shadow:0 0 0 2px color-mix(in srgb,var(--docling) 30%,transparent)}
+.docchip .dt{font-weight:640;font-size:13px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.docchip .dm{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:5px;display:flex;justify-content:space-between;gap:8px}
+.docchip .sc{color:var(--docling)}
+
+.stagegrid{display:grid;grid-template-columns:1.05fr .95fr;gap:24px;align-items:start}
+@media (max-width:900px){.stagegrid{grid-template-columns:1fr}}
+
+.canvas{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:0 18px 44px -30px rgba(20,40,90,.5)}
+.canvas .chead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.canvas .ctitle{font-size:13px;font-weight:640;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.canvas .ctitle a{color:var(--docling);text-decoration:none;font-family:var(--mono);font-size:11px;margin-left:6px}
+.pagenav{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--soft);flex:none}
+.pagenav button{border:1px solid var(--line-2);background:var(--surface);color:var(--ink);border-radius:7px;width:24px;height:22px;cursor:pointer;font-size:12px}
+.pagenav button:disabled{opacity:.35;cursor:default}
+.pageframe{position:relative;width:100%;max-width:430px;margin:0 auto}
+.stage{position:relative}
+.page{position:relative;width:100%;aspect-ratio:var(--par,595/842);background:var(--surface);border:1px solid var(--line-2);
+  border-radius:4px;overflow:hidden;transition:opacity .5s,transform .5s;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--line) 60%,transparent)}
+.pagelabel{position:absolute;top:6px;right:8px;font-family:var(--mono);font-size:8px;color:var(--faint);opacity:.7;z-index:1}
+.loading{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-size:12px;color:var(--faint)}
+
+.el{position:absolute;border-radius:3px;padding:2px 4px;font-size:8.5px;line-height:1.28;color:var(--ink);
+  background:transparent;outline:1.5px solid transparent;outline-offset:1px;
+  transition:outline-color .4s,background .4s,opacity .4s,box-shadow .35s;overflow:hidden}
+.el .t{display:block;overflow:hidden;text-overflow:ellipsis}
+.el.t-heading{font-weight:750;font-size:9px;letter-spacing:-.01em}
+.el.t-caption{font-style:italic;color:var(--soft);font-size:8px}
+.el.t-furniture{color:var(--faint);font-size:7.5px;text-align:center;transition:opacity .4s,color .4s}
+.tlabel{position:absolute;top:-7px;right:3px;font-family:var(--mono);font-size:7px;font-weight:700;letter-spacing:.03em;
+  padding:0 4px;border-radius:4px;opacity:0;transform:translateY(2px);transition:opacity .35s,transform .35s;pointer-events:none;
+  background:var(--surface);border:1px solid currentColor;z-index:4}
+.obadge{position:absolute;top:-8px;left:-8px;width:15px;height:15px;border-radius:50%;display:grid;place-items:center;
+  font-family:var(--mono);font-size:8px;font-weight:700;color:#fff;background:var(--docling);opacity:0;transform:scale(.4);
+  transition:opacity .3s,transform .3s;box-shadow:0 1px 4px rgba(0,0,0,.3);z-index:5}
+.coord{position:absolute;bottom:-7px;left:3px;font-family:var(--mono);font-size:6.5px;color:var(--faint);background:var(--surface);
+  padding:0 3px;border-radius:2px;opacity:0;transition:opacity .35s;z-index:4;white-space:nowrap}
+.tbl{display:grid;width:100%;height:100%;gap:0}
+.tbl .cell{padding:2px 3px;font-size:7px;color:var(--soft);border:1px solid transparent;transition:border-color .4s,background .4s;
+  display:flex;align-items:center;overflow:hidden}
+.tbl .cell.rowlab{font-weight:700;color:var(--ink);justify-content:center}
+.figbox{width:100%;height:100%;border-radius:3px;color:var(--figure);font-family:var(--mono);font-size:8px;display:grid;place-items:center;
+  text-align:center;background:repeating-linear-gradient(45deg,color-mix(in srgb,var(--figure) 13%,transparent) 0 7px,transparent 7px 14px)}
+.opath{position:absolute;inset:0;pointer-events:none;z-index:3;opacity:0;transition:opacity .5s}
+.opath path{fill:none;stroke:var(--docling);stroke-width:1.6;stroke-dasharray:var(--len);stroke-dashoffset:var(--len);stroke-linecap:round;stroke-linejoin:round}
+.secbracket{position:absolute;border:2px solid var(--heading);border-radius:6px;opacity:0;transform:translateX(5px);
+  transition:opacity .4s,transform .4s;pointer-events:none;z-index:2;background:color-mix(in srgb,var(--heading) 5%,transparent)}
+.secbracket .lbl{position:absolute;top:-9px;left:6px;font-family:var(--mono);font-size:8px;color:#fff;background:var(--heading);padding:0 5px;border-radius:3px}
+.el.focus{box-shadow:0 0 0 2.5px color-mix(in srgb,var(--new) 60%,transparent),0 6px 16px -8px rgba(0,0,0,.45);
+  background:color-mix(in srgb,var(--new) 9%,var(--surface));z-index:6}
+.lay-boxes .el.t-heading{outline-color:var(--heading)}.lay-boxes .el.t-paragraph{outline-color:var(--para)}
+.lay-boxes .el.t-list{outline-color:var(--list)}.lay-boxes .el.t-table{outline-color:var(--table)}
+.lay-boxes .el.t-figure{outline-color:var(--figure)}.lay-boxes .el.t-caption{outline-color:var(--caption)}
+.lay-boxes .el.t-furniture{outline-color:var(--furniture)}.lay-boxes .tlabel{opacity:1;transform:none}
+.lay-order .opath{opacity:1}.lay-order .opath path{animation:draw 1.5s ease forwards}.lay-order .obadge{opacity:1;transform:none}
+@keyframes draw{to{stroke-dashoffset:0}}
+.lay-headings .el.t-heading{background:color-mix(in srgb,var(--heading) 16%,var(--surface))}.lay-headings .el.t-heading .hlevel{opacity:1}
+.lay-sections .secbracket{opacity:1;transform:none}
+.lay-paras .el.t-paragraph{background:color-mix(in srgb,var(--para) 13%,var(--surface))}
+.lay-lists .el.t-list{background:color-mix(in srgb,var(--list) 14%,var(--surface))}
+.lay-tabledet .el.t-table{background:color-mix(in srgb,var(--table) 12%,var(--surface))}
+.lay-tablestruct .tbl .cell{border-color:color-mix(in srgb,var(--table) 48%,transparent)}
+.lay-figure .el.t-figure{background:color-mix(in srgb,var(--figure) 9%,var(--surface))}
+.lay-figure .el.t-caption{background:color-mix(in srgb,var(--caption) 11%,var(--surface))}
+.lay-furniture .el.t-furniture{opacity:.32;color:var(--furniture)}
+.lay-coords .coord{opacity:1}
+.hlevel{font-family:var(--mono);font-size:7px;color:var(--heading);opacity:0;transition:opacity .35s;margin-left:5px;border:1px solid var(--heading);border-radius:3px;padding:0 3px}
+.treeview{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .6s;overflow:auto;padding:14px;
+  font-family:var(--mono);font-size:11px;line-height:1.5;background:var(--surface)}
+.stage.lay-tree .page{opacity:0;transform:scale(.97);pointer-events:none}
+.stage.lay-tree .treeview{opacity:1;pointer-events:auto}
+.stage.lay-tree .opath,.stage.lay-tree .secbracket{opacity:0}
+.tree ul{list-style:none;margin:0;padding-left:15px;border-left:1px solid var(--line-2)}
+.tree>ul{border-left:none;padding-left:2px}
+.tree li{padding:2px 0;opacity:0;transform:translateX(-6px);animation:pop .4s ease forwards;animation-delay:calc(var(--i,0)*55ms)}
+@keyframes pop{to{opacity:1;transform:none}}
+.tnode{display:inline-flex;gap:6px;align-items:baseline}
+.n-doc{font-weight:700;color:var(--ink)}.n-sec{color:var(--heading);font-weight:600}.n-leaf{color:var(--soft)}
+.n-tbl{color:var(--table);font-weight:600}.n-list{color:var(--list)}.n-mut{color:var(--faint);font-style:italic}.gly{color:var(--faint)}
+
+.panel{position:sticky;top:16px;display:flex;flex-direction:column;gap:14px}
+.now{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;position:relative;overflow:hidden}
+.now::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--nowc,var(--docling))}
+.now .tool{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.03em;
+  padding:3px 10px;border-radius:999px;color:var(--nowc,var(--docling));background:color-mix(in srgb,var(--nowc,var(--docling)) 13%,transparent);
+  border:1px solid color-mix(in srgb,var(--nowc,var(--docling)) 32%,transparent)}
+.now .tool .d{width:7px;height:7px;border-radius:50%;background:currentColor}
+.now .stepno{font-family:var(--mono);font-size:11px;color:var(--faint);float:right;margin-top:4px}
+.now h2{font-size:18px;margin:11px 0 7px;letter-spacing:-.01em;font-weight:680;text-wrap:balance}
+.now p{margin:0;color:var(--soft);font-size:13.5px}
+.now .ev{margin-top:11px;font-family:var(--mono);font-size:11px;color:var(--ink);background:var(--surface-2);border:1px dashed var(--line-2);border-radius:7px;padding:7px 10px}
+.now .ev b{color:var(--nowc,var(--docling))}
+.now .tags{margin-top:10px}
+.tag{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:5px;margin-right:5px}
+.tag.free{color:var(--docling);background:color-mix(in srgb,var(--docling) 13%,transparent)}
+.tag.derived{color:var(--new);background:color-mix(in srgb,var(--new) 15%,transparent)}
+.tag.scout{color:var(--scout);background:color-mix(in srgb,var(--scout) 15%,transparent)}
+.tag.caveat{color:var(--gap);background:color-mix(in srgb,var(--gap) 12%,transparent)}
+.controls{display:flex;align-items:center;gap:9px}
+.controls button{font-family:var(--sans);font-size:14px;font-weight:600;border-radius:10px;border:1px solid var(--line-2);background:var(--surface);
+  color:var(--ink);padding:9px 15px;cursor:pointer;transition:.14s;display:inline-flex;align-items:center;gap:7px}
+.controls button:hover{border-color:var(--docling);color:var(--docling)}
+.controls button:disabled{opacity:.4;cursor:default}
+.controls .play{background:var(--docling);color:#fff;border-color:var(--docling)}
+.controls .play:hover{background:color-mix(in srgb,var(--docling) 85%,#000);color:#fff}
+.controls .sp{flex:1}
+.prog{height:5px;border-radius:3px;background:var(--surface-2);overflow:hidden}
+.prog .bar{height:100%;background:var(--docling);width:0;transition:width .4s}
+.steps{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px}
+.steps ol{list-style:none;margin:0;padding:0;counter-reset:s}
+.steps li{counter-increment:s;display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12.5px;color:var(--soft);transition:.13s}
+.steps li:hover{background:var(--surface-2)}
+.steps li::before{content:counter(s);font-family:var(--mono);font-size:10px;width:18px;height:18px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--surface-2);color:var(--faint)}
+.steps li.done::before{background:color-mix(in srgb,var(--docling) 20%,transparent);color:var(--docling)}
+.steps li.cur{background:color-mix(in srgb,var(--docling) 10%,transparent);color:var(--ink);font-weight:600}
+.steps li.cur::before{background:var(--docling);color:#fff}
+.dotc{width:8px;height:8px;border-radius:2px;flex:none}
+footer{margin-top:28px;font-family:var(--mono);font-size:11px;color:var(--faint);text-align:center}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style></head><body>
+<div class="wrap">
+  <p class="eyebrow">SEBI preprocessing · layout understanding · live over the corpus</p>
+  <h1>How the query-relevant PDFs become document trees</h1>
+  <p class="sub">Search the parsed corpus. Each relevant document's <b>real elements</b> — positioned by their actual bounding boxes, in real reading order — reveal how PyMuPDF and Docling recover structure, then assemble into the tree retrieval walks. Pick any document, step through it, or press Play.</p>
+
+  <form class="searchbar" id="qform">
+    <input id="q" autocomplete="off" placeholder="Search the corpus — e.g. mutual fund risk-o-meter, insider trading, bankers to an issue">
+    <button type="submit">Search</button>
+  </form>
+  <div class="docstrip" id="docstrip"></div>
+
+  <div class="stagegrid">
+    <div class="canvas">
+      <div class="chead">
+        <div class="ctitle" id="ctitle">—<a id="srclink" href="#" target="_blank" rel="noopener">source ↗</a></div>
+        <div class="pagenav" id="pagenav"></div>
+      </div>
+      <div class="pageframe"><div class="stage" id="stage">
+        <div class="page" id="page"><span class="pagelabel" id="pagelabel"></span>
+          <svg class="opath" id="opath" preserveAspectRatio="none"><path id="opline" d=""/></svg>
+          <div class="secbracket" id="secbracket"><span class="lbl">§ section</span></div>
+          <div class="loading" id="loading">loading…</div>
+        </div>
+        <div class="treeview" id="treeview"><div class="tree"><ul id="treeroot"></ul></div></div>
+      </div></div>
+    </div>
+
+    <div class="panel">
+      <div class="now" id="now">
+        <span class="tool" id="now-tool"><span class="d"></span><span id="now-toolname">—</span></span>
+        <span class="stepno" id="now-stepno">1 / 14</span>
+        <h2 id="now-title">Search to begin</h2>
+        <p id="now-desc">Type a query above — the relevant documents will appear, and stepping through one shows its real layout being understood.</p>
+        <div class="ev" id="now-ev" style="display:none"></div>
+        <div class="tags" id="now-tags"></div>
+      </div>
+      <div class="controls">
+        <button id="prev">‹ Prev</button><button class="play" id="play">▶ Play</button><button id="next">Next ›</button>
+        <span class="sp"></span><button id="restart" title="Restart">↺</button>
+      </div>
+      <div class="prog"><div class="bar" id="bar"></div></div>
+      <div class="steps"><ol id="steplist"></ol></div>
+    </div>
+  </div>
+  <footer>PyMuPDF = scout · Docling = structure · Camelot = table repair · normalize = provenance · assembly = the tree · real data, live from parsed/</footer>
+</div>
+
+<script>
+if(location.protocol==='file:'){
+  document.body.innerHTML='<div style="max-width:560px;margin:16vh auto;padding:0 24px;text-align:center;font-family:system-ui">'+
+   '<h2 style="font-size:24px">Open via the server, not the file</h2>'+
+   '<p style="color:#667">This page fetches real parsed documents from the backend. Start it and visit '+
+   '<code style="color:#0e8285">http://127.0.0.1:8077/layout.html</code></p></div>';
+  throw new Error('file://');
+}
+const TYPELABEL={heading:'heading',paragraph:'paragraph',list:'list',table:'table',figure:'figure',caption:'caption',header_footer:'header/footer'};
+const TYPECOLOR={heading:'var(--heading)',paragraph:'var(--para)',list:'var(--list)',table:'var(--table)',figure:'var(--figure)',caption:'var(--caption)',header_footer:'var(--furniture)'};
+const CLSFOR=t=>t==='header_footer'?'furniture':t;
+const STEPS=[
+ {t:"Raw PDF page",tool:"input",c:"var(--scout)",tags:[],add:[],focus:[],
+  d:"A single page from the selected document — native text, an arbitrary layout of headings, body text, tables, figures and running furniture. No structure yet."},
+ {t:"Triage — native vs scanned",tool:"PyMuPDF · scout",c:"var(--scout)",tags:[["scout","the scout"]],add:["lay-triage"],focus:[],
+  d:"PyMuPDF reads the page's text layer. Dense with characters → native, parsed directly by Docling. Sparse → scanned, rendered to an image for OCR. Decided per page."},
+ {t:"Layout analysis",tool:"Docling",c:"var(--docling)",tags:[["free","Docling, one pass"]],add:["lay-boxes"],focus:[],
+  d:"Docling's layout model draws a bounding box around every block and labels it: heading, paragraph, list, table, figure or page furniture."},
+ {t:"Reading-order resolution",tool:"Docling",c:"var(--docling)",tags:[["free","Docling"]],add:["lay-order"],focus:[],
+  d:"Blocks are sequenced the way a person reads them — crucial where geometry alone misleads (captions above tables, multi-column text). The path threads them in order."},
+ {t:"Heading detection & hierarchy",tool:"Docling · +numbering",c:"var(--heading)",tags:[["free","Docling"],["caveat","levels noisy"]],add:["lay-headings"],focus:[".t-heading"],
+  d:"Headings are classified and leveled. Docling's levels can be noisy, so a numbering regex (1. / 2.1 / (a)) — which SEBI text uses constantly — backs them up."},
+ {t:"Section / subsection division",tool:"assembly · derived",c:"var(--new)",tags:[["derived","new stage"]],add:["lay-sections"],focus:[],
+  d:"Blocks below a heading fold under it, and headings nest by level → sections and subsections. This grouping is the backbone of the tree (largest section highlighted)."},
+ {t:"Paragraph segmentation",tool:"Docling",c:"var(--para)",tags:[["free","Docling"]],add:["lay-paras"],focus:[".t-paragraph"],
+  d:"Body text becomes clean paragraph units within each section, not one undifferentiated blob."},
+ {t:"List detection",tool:"Docling",c:"var(--list)",tags:[["free","Docling"]],add:["lay-lists"],focus:[".t-list"],
+  d:"Bulleted and numbered runs are grouped as list items with their markers, instead of loose paragraphs."},
+ {t:"Table detection",tool:"Docling",c:"var(--table)",tags:[["free","Docling"]],add:["lay-tabledet"],focus:[".t-table"],
+  d:"Table regions are located as whole blocks and set apart from surrounding prose."},
+ {t:"Table structure recovery",tool:"TableFormer · +Camelot",c:"var(--table)",tags:[["free","TableFormer"],["derived","Camelot repair"]],add:["lay-tablestruct"],focus:[".t-table"],
+  d:"Rows and columns are reconstructed into a real grid. If the grid comes out broken, the quality gate fires Camelot to re-extract the native table — kept only if strictly better."},
+ {t:"Figure & caption association",tool:"Docling",c:"var(--figure)",tags:[["free","Docling"],["caveat","links can be wrong"]],add:["lay-figure"],focus:[".t-figure",".t-caption"],
+  d:"Images and figures are boxed and linked to their nearby caption. Association is best-effort — verify it downstream rather than trusting it blindly."},
+ {t:"Header / footer stripping",tool:"Docling · furniture",c:"var(--furniture)",tags:[["free","Docling"],["caveat","imperfect"]],add:["lay-furniture"],focus:[".t-furniture"],
+  d:"Repeating page furniture — running head, page number, annexure banners — is detected and set aside so it doesn't pollute the body and the tree."},
+ {t:"Bounding boxes & provenance",tool:"normalize",c:"var(--derived)",tags:[["derived","your code"]],add:["lay-coords"],focus:[],
+  d:"Every element is written with its box (x0,y0,x1,y1 in PDF points) plus doc_id, page and source_parser. Footnotes, code and formulas stay marked extension points."},
+ {t:"Document tree",tool:"assembly · derived",c:"var(--new)",tags:[["derived","the payoff"]],add:["lay-tree"],focus:[],
+  d:"It all composes into one nested tree: document → sections → subsections → paragraphs, lists, tables — each still carrying its page and box. This is what retrieval walks."},
+];
+
+const $=id=>document.getElementById(id);
+const stage=$('stage'),page=$('page');
+let cur=0,playing=false,timer=null;
+let META=null, ELS=[], TREE=[], SECTION=[], EV=[];
+let PAGES=[], PIDX=0, ACTIVE=null;
+
+// step list
+const sl=$('steplist');
+STEPS.forEach((s,i)=>{const li=document.createElement('li');
+  li.innerHTML='<span class="dotc" style="background:'+s.c+'"></span>'+s.t;
+  li.onclick=()=>{if(META){stop();go(i)}};sl.appendChild(li);});
+
+function esc(s){return (s||'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
+function short(s,n){s=(s||'').trim();return s.length>(n||58)?s.slice(0,(n||58)-1)+'…':s;}
+
+// ---------- search ----------
+async function search(q){
+  const strip=$('docstrip');strip.innerHTML='<span style="font-family:var(--mono);font-size:12px;color:var(--faint);padding:8px">searching…</span>';
+  try{
+    const r=await fetch('/api/search?q='+encodeURIComponent(q));const d=await r.json();
+    strip.innerHTML='';
+    if(!d.docs.length){strip.innerHTML='<span style="font-family:var(--mono);font-size:12px;color:var(--faint);padding:8px">no documents matched</span>';return;}
+    d.docs.forEach((doc,i)=>{
+      const c=document.createElement('div');c.className='docchip'+(i===0?' active':'');c.dataset.id=doc.doc_id;
+      c.innerHTML='<div class="dt">'+esc(doc.title)+'</div><div class="dm"><span>'+esc(doc.subsection||'doc '+doc.doc_id)+
+        '</span><span class="sc">'+doc.score+'</span></div>';
+      c.onclick=()=>{document.querySelectorAll('.docchip').forEach(x=>x.classList.remove('active'));c.classList.add('active');loadDoc(doc.doc_id,doc.page);};
+      strip.appendChild(c);
+    });
+    loadDoc(d.docs[0].doc_id, d.docs[0].page);
+  }catch(e){strip.innerHTML='<span style="color:var(--gap);font-family:var(--mono);font-size:12px;padding:8px">backend error — is the server running?</span>';}
+}
+
+// ---------- load a document page ----------
+async function loadDoc(id,pg){
+  $('loading').style.display='grid';
+  try{
+    const url='/api/doc?id='+encodeURIComponent(id)+(pg?'&page='+pg:'');
+    const d=await fetch(url).then(r=>r.json());
+    META=d;ELS=d.elements;PAGES=d.pages;ACTIVE=id;
+    PIDX=Math.max(0,PAGES.findIndex(p=>p.page===d.page));
+    page.style.setProperty('--par', d.pw+'/'+d.ph);
+    $('pagelabel').textContent=d.pw+' × '+d.ph+' pt';
+    $('ctitle').innerHTML=esc(short(d.title,52))+' <span style="color:var(--faint);font-family:var(--mono);font-size:11px">doc '+d.doc_id+'</span> <a id="srclink" href="'+esc(d.url||'#')+'" target="_blank" rel="noopener">source ↗</a>';
+    renderPage();renderPageNav();
+    TREE=buildTree();SECTION=pickSection();EV=computeEv();
+    $('now-ev').style.display='block';
+    go(0);
+  }catch(e){$('now-desc').textContent='Could not load document: '+e;}
+  $('loading').style.display='none';
+}
+
+function renderPage(){
+  page.querySelectorAll('.el').forEach(n=>n.remove());
+  const PW=META.pw,PH=META.ph;
+  for(const e of ELS){
+    const div=document.createElement('div');
+    div.className='el t-'+CLSFOR(e.type);div.dataset.order=e.o;
+    div.style.left=(e.x0/PW*100)+'%';div.style.top=(e.y0/PH*100)+'%';div.style.width=((e.x1-e.x0)/PW*100)+'%';
+    if(e.type==='table'||e.type==='figure') div.style.height=((e.y1-e.y0)/PH*100)+'%';
+    const col=TYPECOLOR[e.type]||'var(--soft)';
+    let inner='<span class="obadge">'+e.o+'</span><span class="tlabel" style="color:'+col+'">'+(TYPELABEL[e.type]||e.type)+'</span>'+
+      '<span class="coord">'+Math.round(e.x0)+','+Math.round(e.y0)+'</span>';
+    if(e.type==='table'&&e.table&&e.table.length){
+      const cols=e.table[0].length;
+      let g='<div class="tbl" style="grid-template-columns:34px repeat('+Math.max(cols-1,1)+',1fr)">';
+      e.table.forEach(r=>r.forEach((c,ci)=>{g+='<div class="cell'+(ci===0?' rowlab':'')+'">'+esc(String(c))+'</div>';}));
+      inner+=g+'</div>';
+    }else if(e.type==='figure'){inner+='<div class="figbox">▨<br>'+esc(short(e.text,24)||'figure')+'</div>';}
+    else if(e.type==='heading'){inner+='<span class="t">'+esc(e.text)+'<span class="hlevel">H</span></span>';}
+    else{inner+='<span class="t">'+esc(e.text)+'</span>';}
+    div.innerHTML=inner;page.appendChild(div);
+  }
+}
+
+function renderPageNav(){
+  const nav=$('pagenav');
+  nav.innerHTML='<button id="pp">‹</button><span>page '+META.page+' <span style="color:var(--faint)">('+(PIDX+1)+'/'+PAGES.length+' populated)</span></span><button id="pn">›</button>';
+  $('pp').disabled=PIDX<=0;$('pn').disabled=PIDX>=PAGES.length-1;
+  $('pp').onclick=()=>{if(PIDX>0){stop();loadDoc(ACTIVE,PAGES[PIDX-1].page);}};
+  $('pn').onclick=()=>{if(PIDX<PAGES.length-1){stop();loadDoc(ACTIVE,PAGES[PIDX+1].page);}};
+}
+
+// ---------- generic structure assembly ----------
+function pickSection(){
+  const groups=[];let g=null;
+  for(const e of ELS){
+    if(e.type==='header_footer')continue;
+    if(e.type==='heading'){g={h:e,k:[]};groups.push(g);}
+    else if(g)g.k.push(e);
+  }
+  if(!groups.length)return [];
+  const best=groups.reduce((a,b)=>b.k.length>a.k.length?b:a);
+  return [best.h.o,...best.k.map(x=>x.o)];
+}
+function buildTree(){
+  const rows=[[0,'n-doc','▪',short(META.title,44)+' · doc '+META.doc_id+' · p.'+META.page]];
+  const GLY={heading:'§',paragraph:'¶',list:'•',table:'▦',figure:'▨',caption:'·'};
+  const CLS={heading:'n-sec',paragraph:'n-leaf',list:'n-list',table:'n-tbl',figure:'n-leaf',caption:'n-leaf'};
+  const stripped=[];let inSec=false;
+  for(const e of ELS){
+    if(e.type==='header_footer'){stripped.push(e.text);continue;}
+    if(e.type==='heading'){rows.push([1,'n-sec','§',short(e.text)]);inSec=true;continue;}
+    let label;
+    if(e.type==='table'&&e.table)label='table '+e.table.length+'×'+(e.table[0]?e.table[0].length:0)+(e.text?' — '+short(e.text,30):'');
+    else label=short(e.text||('['+e.type+']'));
+    rows.push([inSec?2:1, CLS[e.type]||'n-leaf', GLY[e.type]||'·', label]);
+  }
+  if(stripped.length)rows.push([1,'n-mut','—','furniture stripped: '+stripped.slice(0,3).map(s=>short(s,30)).join(' · ')]);
+  return rows;
+}
+function computeEv(){
+  const n=ELS.length,cnt={};ELS.forEach(e=>cnt[e.type]=(cnt[e.type]||0)+1);
+  const types=Object.keys(cnt).length;
+  const ft=ELS.find(e=>e.type==='table'&&e.table);
+  const tdim=ft?ft.table.length+'×'+(ft.table[0]?ft.table[0].length:0):'—';
+  const g=t=>cnt[t]||0, pl=(v,w)=>v+' '+w+(v===1?'':'s');
+  const o0=ELS.length?ELS[0].o:0,oN=ELS.length?ELS[ELS.length-1].o:0;
+  return [
+   '<b>'+n+'</b> elements will be recovered from this page',
+   'page '+META.page+' → <b>native</b> · text layer present',
+   '<b>'+n+'</b> boxes · '+types+' distinct element types',
+   'threaded <b>'+o0+' → '+oN+'</b> in reading order',
+   '<b>'+pl(g('heading'),'heading')+'</b> detected',
+   'largest section: heading + '+(SECTION.length?SECTION.length-1:0)+' blocks',
+   '<b>'+pl(g('paragraph'),'paragraph')+'</b>',
+   '<b>'+pl(g('list'),'list item')+'</b> grouped',
+   '<b>'+pl(g('table'),'table region')+'</b> found',
+   'grid: <b>'+tdim+'</b>'+(ft?' · real cell values':' · (no table on this page)'),
+   '<b>'+pl(g('figure'),'figure')+'</b> + '+pl(g('caption'),'caption'),
+   '<b>'+pl(g('header_footer'),'furniture line')+'</b> dimmed',
+   '<b>'+n+'</b> elements tagged doc '+META.doc_id+' · p.'+META.page,
+   '1 doc → <b>'+pl(g('heading'),'section')+'</b> · furniture stripped',
+  ];
+}
+
+// ---------- tree render + overlays ----------
+function renderTree(){
+  const root=$('treeroot');root.innerHTML='';const stacks=[root];let i=0;
+  for(const [lvl,cls,gly,txt] of TREE){
+    const li=document.createElement('li');li.style.setProperty('--i',i++);
+    li.innerHTML='<span class="tnode"><span class="gly">'+gly+'</span><span class="'+cls+'">'+esc(txt)+'</span></span>';
+    (stacks[lvl]||root).appendChild(li);
+    const ul=document.createElement('ul');li.appendChild(ul);stacks[lvl+1]=ul;stacks.length=lvl+2;
+  }
+  root.querySelectorAll('ul').forEach(u=>{if(!u.children.length)u.remove();});
+}
+function drawPath(){
+  const svg=$('opath'),line=$('opline'),pr=page.getBoundingClientRect();
+  svg.setAttribute('viewBox','0 0 '+pr.width+' '+pr.height);
+  const pts=[...page.querySelectorAll('.el[data-order]')].sort((a,b)=>a.dataset.order-b.dataset.order)
+    .map(b=>{const r=b.getBoundingClientRect();return [r.left-pr.left+7,r.top-pr.top+7];});
+  if(pts.length<2){line.setAttribute('d','');return;}
+  line.setAttribute('d','M '+pts.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' L '));
+  svg.style.setProperty('--len',line.getTotalLength());
+}
+function drawSection(){
+  const br=$('secbracket');
+  if(!SECTION.length){br.style.opacity='0';return;}
+  const pr=page.getBoundingClientRect();
+  const rects=SECTION.map(o=>page.querySelector('.el[data-order="'+o+'"]')).filter(Boolean).map(el=>el.getBoundingClientRect());
+  if(!rects.length)return;
+  const l=Math.min(...rects.map(r=>r.left))-pr.left,t=Math.min(...rects.map(r=>r.top))-pr.top;
+  const rg=Math.max(...rects.map(r=>r.right))-pr.left,b=Math.max(...rects.map(r=>r.bottom))-pr.top;
+  br.style.left=(l-6)+'px';br.style.top=(t-4)+'px';br.style.width=(rg-l+12)+'px';br.style.height=(b-t+8)+'px';
+}
+function applyLayers(){
+  let cls='stage';for(let i=1;i<=cur;i++)for(const l of STEPS[i].add)if(!cls.includes(l))cls+=' '+l;
+  stage.className=cls;
+  page.querySelectorAll('.el.focus').forEach(b=>b.classList.remove('focus'));
+  for(const sel of STEPS[cur].focus) page.querySelectorAll('.el'+sel).forEach(b=>b.classList.add('focus'));
+}
+function go(i){
+  cur=Math.max(0,Math.min(STEPS.length-1,i));const s=STEPS[cur],now=$('now');
+  now.style.setProperty('--nowc',s.c);
+  const tool=$('now-tool');tool.style.color=s.c;tool.style.background='color-mix(in srgb,'+s.c+' 13%,transparent)';tool.style.borderColor='color-mix(in srgb,'+s.c+' 32%,transparent)';
+  $('now-toolname').textContent=s.tool;$('now-title').textContent=s.t;$('now-desc').textContent=s.d;
+  $('now-ev').innerHTML=EV[cur]||'';$('now-stepno').textContent=(cur+1)+' / '+STEPS.length;
+  const tw=$('now-tags');tw.innerHTML='';for(const [k,label] of s.tags){const sp=document.createElement('span');sp.className='tag '+k;sp.textContent=label;tw.appendChild(sp);}
+  [...sl.children].forEach((li,idx)=>{li.classList.toggle('cur',idx===cur);li.classList.toggle('done',idx<cur);});
+  $('bar').style.width=(cur/(STEPS.length-1)*100)+'%';$('prev').disabled=cur===0;$('next').disabled=cur===STEPS.length-1;
+  if(cur===STEPS.length-1) renderTree();
+  applyLayers();
+  requestAnimationFrame(()=>{drawSection();if(cur>=3)drawPath();});
+}
+function stop(){playing=false;clearInterval(timer);$('play').textContent='▶ Play';}
+function play(){if(!META)return;if(playing){stop();return;}if(cur===STEPS.length-1)go(0);playing=true;$('play').textContent='❚❚ Pause';
+  timer=setInterval(()=>{if(cur>=STEPS.length-1)stop();else go(cur+1);},2700);}
+$('next').onclick=()=>{if(META){stop();go(cur+1)}};$('prev').onclick=()=>{if(META){stop();go(cur-1)}};
+$('play').onclick=play;$('restart').onclick=()=>{if(META){stop();go(0)}};
+document.addEventListener('keydown',e=>{if(!META)return;if(e.key==='ArrowRight'){stop();go(cur+1)}if(e.key==='ArrowLeft'){stop();go(cur-1)}if(e.key===' '&&e.target.id!=='q'){e.preventDefault();play()}});
+window.addEventListener('resize',()=>{if(META){drawSection();if(cur>=3)drawPath()}});
+$('qform').addEventListener('submit',e=>{e.preventDefault();const q=$('q').value.trim();if(q)search(q);});
+
+// boot with a default query so the page isn't empty
+$('q').value='mutual fund risk-o-meter';
+search('mutual fund risk-o-meter');
+</script>
+</body></html>
