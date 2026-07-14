@@ -66,3 +66,15 @@ Thumbs.db
 # Claude
 # =========================
 claude.md
+
+# =========================
+# Generated artifacts (rebuildable — not source)
+# =========================
+# knowledge base + indexes are rebuilt by build.py / embed.py / build_memory.py
+*.npy
+*.pkl
+knowledge/chunk_ids.json
+knowledge/knowledge.db
+# preprocessing output (rebuilt from PDFs by the preprocess package)
+preprocess/parsed/
+preprocess/data/
