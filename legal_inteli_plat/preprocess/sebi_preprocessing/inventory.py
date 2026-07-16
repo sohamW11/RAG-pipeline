@@ -30,7 +30,8 @@ class InventoryRecord(BaseModel):
     title: str | None = None
     date: str | None = None  # publication_date (date part only)
     subsection: str | None = None  # documents.category_name
-    source_url: str | None = None
+    source_url: str | None = None  # documents.source_url (HTML landing page)
+    pdf_url: str | None = None  # documents.pdf_url (direct, downloadable PDF)
 
 
 class Inventory:
@@ -79,7 +80,7 @@ def load_inventory(settings: PreprocessSettings | None = None) -> Inventory | No
         rows = conn.execute(
             """
             SELECT d.document_number, d.title, d.publication_date,
-                   d.category_name, d.source_url, v.storage_key
+                   d.category_name, d.source_url, d.pdf_url, v.storage_key
             FROM documents d
             LEFT JOIN document_versions v ON v.document_id = d.id
             """
@@ -94,6 +95,7 @@ def load_inventory(settings: PreprocessSettings | None = None) -> Inventory | No
                 date=_date_part(r["publication_date"]),
                 subsection=r["category_name"],
                 source_url=r["source_url"],
+                pdf_url=r["pdf_url"],
             )
             by_doc_id.setdefault(doc_id, record)
             if r["storage_key"]:

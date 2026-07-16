@@ -180,6 +180,7 @@ def process_document(
         date=record.date if record else None,
         subsection=record.subsection if record else None,
         source_url=record.source_url if record else None,
+        pdf_url=record.pdf_url if record else None,
         metadata_matched=record is not None,
         source_files=source_files,
         page_count=len(pages),

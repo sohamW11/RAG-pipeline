@@ -77,7 +77,8 @@ class ParsedDocument(BaseModel):
     title: str | None = None
     date: str | None = None
     subsection: str | None = None
-    source_url: str | None = None
+    source_url: str | None = None  # HTML landing page
+    pdf_url: str | None = None  # direct, downloadable PDF
     metadata_matched: bool = True
     source_files: list[str] = Field(default_factory=list)  # main + annexures
     page_count: int = 0
